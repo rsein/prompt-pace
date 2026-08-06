@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Plus, Sparkles, Trophy, User, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { fmtPace, fmtTime } from "@/lib/utils";
+import { fmtPace, fmtTime, isThisMonth, isThisYear, currentMonthLabel, currentYearLabel } from "@/lib/utils";
 import Avatar from "./Avatar";
 import Podium from "./Podium";
 import RegisterRunModal from "./RegisterRunModal";
@@ -24,23 +24,33 @@ export default function JourneyClient({
   const supabase = createClient();
   const [runs, setRuns] = useState<Run[]>(initialRuns);
   const [tab, setTab] = useState<"jornada" | "perfil">("jornada");
+  const [periodView, setPeriodView] = useState<"monthly" | "annual">(journey.period_monthly ? "monthly" : "annual");
   const [registerOpen, setRegisterOpen] = useState(false);
   const [aiComment, setAiComment] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
 
-  const totalKm = useMemo(() => runs.reduce((s, r) => s + Number(r.km), 0), [runs]);
-  const pct = Math.min(100, Math.round((totalKm / journey.goal_km) * 100));
+  const showToggle = journey.period_monthly && journey.period_annual;
+  const goalKm = periodView === "monthly" ? journey.monthly_goal_km ?? 0 : journey.annual_goal_km ?? 0;
+  const periodLabel = periodView === "monthly" ? currentMonthLabel() : currentYearLabel();
+
+  const periodRuns = useMemo(
+    () => runs.filter((r) => (periodView === "monthly" ? isThisMonth(r.created_at) : isThisYear(r.created_at))),
+    [runs, periodView]
+  );
+
+  const totalKm = useMemo(() => periodRuns.reduce((s, r) => s + Number(r.km), 0), [periodRuns]);
+  const pct = goalKm ? Math.min(100, Math.round((totalKm / goalKm) * 100)) : 0;
 
   const memberTotals = useMemo(() => {
     return members
       .map((m) => {
-        const mine = runs.filter((r) => r.user_id === m.id);
+        const mine = periodRuns.filter((r) => r.user_id === m.id);
         const km = mine.reduce((s, r) => s + Number(r.km), 0);
         const timeSec = mine.reduce((s, r) => s + r.time_sec, 0);
         return { ...m, km, runsCount: mine.length, timeSec };
       })
       .sort((a, b) => b.km - a.km);
-  }, [members, runs]);
+  }, [members, periodRuns]);
 
   async function refreshRuns() {
     const { data } = await supabase
@@ -52,11 +62,24 @@ export default function JourneyClient({
     generateComment(data ?? []);
   }
 
+  function daysLeftInPeriod() {
+    const now = new Date();
+    if (periodView === "monthly") {
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000));
+    }
+    const end = new Date(now.getFullYear(), 11, 31);
+    return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000));
+  }
+
   async function generateComment(currentRuns: Run[]) {
     setAiLoading(true);
+    const relevant = currentRuns.filter((r) =>
+      periodView === "monthly" ? isThisMonth(r.created_at) : isThisYear(r.created_at)
+    );
     const totals = members
       .map((m) => {
-        const km = currentRuns.filter((r) => r.user_id === m.id).reduce((s, r) => s + Number(r.km), 0);
+        const km = relevant.filter((r) => r.user_id === m.id).reduce((s, r) => s + Number(r.km), 0);
         return { name: m.name, km };
       })
       .sort((a, b) => b.km - a.km);
@@ -69,9 +92,9 @@ export default function JourneyClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           standings,
-          goalKm: journey.goal_km,
+          goalKm: goalKm || "sem meta",
           totalKm: total.toFixed(1),
-          daysLeft: Math.max(0, Math.ceil((new Date(journey.ends_on).getTime() - Date.now()) / 86400000)),
+          daysLeft: daysLeftInPeriod(),
         }),
       });
       const data = await res.json();
@@ -86,7 +109,7 @@ export default function JourneyClient({
   useEffect(() => {
     generateComment(runs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [periodView]);
 
   const me = memberTotals.find((m) => m.id === currentUserId);
   const myRank = memberTotals.findIndex((m) => m.id === currentUserId) + 1;
@@ -114,10 +137,36 @@ export default function JourneyClient({
           <span>{aiLoading ? "O narrador está pensando..." : aiComment}</span>
         </div>
 
-        <div className="mt-5">
+        {showToggle && (
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={() => setPeriodView("monthly")}
+              className="px-3 py-1.5 rounded-full text-xs font-bold"
+              style={{
+                background: periodView === "monthly" ? `${journey.theme_a}33` : "rgba(255,255,255,0.06)",
+                color: periodView === "monthly" ? journey.theme_a : "#8890B5",
+              }}
+            >
+              Mensal
+            </button>
+            <button
+              onClick={() => setPeriodView("annual")}
+              className="px-3 py-1.5 rounded-full text-xs font-bold"
+              style={{
+                background: periodView === "annual" ? `${journey.theme_b}33` : "rgba(255,255,255,0.06)",
+                color: periodView === "annual" ? journey.theme_b : "#8890B5",
+              }}
+            >
+              Anual
+            </button>
+          </div>
+        )}
+
+        <div className="mt-4">
+          <div className="text-[11px] text-muted font-bold mb-1 capitalize">{periodLabel}</div>
           <div className="flex justify-between text-sm font-extrabold mb-2">
             <span>{totalKm.toFixed(1)} km</span>
-            <span className="text-muted">{pct}% de {journey.goal_km} km</span>
+            <span className="text-muted">{pct}% de {goalKm} km</span>
           </div>
           <div className="h-2.5 rounded-full bg-white/10 overflow-hidden">
             <div
@@ -163,7 +212,9 @@ export default function JourneyClient({
                   <div className="flex-1">
                     <div className="text-sm font-semibold">{member.name}</div>
                     <div className="text-[11px] text-muted">
-                      {fmtPace(r.time_sec, Number(r.km))} /km · {fmtTime(r.time_sec)} min{r.bpm ? ` · ${r.bpm} bpm` : ""}
+                      {fmtPace(r.time_sec, Number(r.km))} /km · {fmtTime(r.time_sec)} min
+                      {r.bpm ? ` · ${r.bpm} bpm` : ""}
+                      {r.calories ? ` · ${r.calories} kcal` : ""}
                     </div>
                   </div>
                   <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>

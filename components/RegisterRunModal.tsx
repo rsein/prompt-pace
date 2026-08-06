@@ -24,6 +24,7 @@ export default function RegisterRunModal({
   const [km, setKm] = useState("");
   const [time, setTime] = useState("");
   const [bpm, setBpm] = useState("");
+  const [calories, setCalories] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function handleSubmit() {
@@ -39,6 +40,7 @@ export default function RegisterRunModal({
       km: kmValue,
       time_sec: timeSec,
       bpm: bpm ? parseInt(bpm, 10) : null,
+      calories: calories ? parseInt(calories, 10) : null,
     });
 
     setSaving(false);
@@ -77,6 +79,15 @@ export default function RegisterRunModal({
           value={bpm}
           onChange={(e) => setBpm(e.target.value)}
           placeholder="ex: 150"
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-base font-extrabold outline-none mt-2 mb-4"
+        />
+
+        <label className="text-xs font-bold text-muted uppercase tracking-wide">Calorias (opcional)</label>
+        <input
+          value={calories}
+          onChange={(e) => setCalories(e.target.value)}
+          placeholder="ex: 320"
+          inputMode="numeric"
           className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-base font-extrabold outline-none mt-2 mb-5"
         />
 

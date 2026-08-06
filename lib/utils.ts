@@ -20,3 +20,24 @@ export function parseTimeInput(input: string) {
   const [mm, ss] = input.split(":").map((v) => parseInt(v, 10) || 0);
   return mm * 60 + (ss || 0);
 }
+
+export function isThisMonth(dateStr: string) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+}
+
+export function isThisYear(dateStr: string) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear();
+}
+
+export function currentMonthLabel() {
+  const now = new Date();
+  return now.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+}
+
+export function currentYearLabel() {
+  return String(new Date().getFullYear());
+}

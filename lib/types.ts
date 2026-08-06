@@ -9,11 +9,15 @@ export type Journey = {
   id: string;
   title: string;
   season: string;
-  goal_km: number;
   theme_a: string;
   theme_b: string;
   starts_on: string;
-  ends_on: string;
+  created_by: string;
+  created_at: string;
+  period_monthly: boolean;
+  period_annual: boolean;
+  monthly_goal_km: number | null;
+  annual_goal_km: number | null;
 };
 
 export type Run = {
@@ -23,6 +27,7 @@ export type Run = {
   km: number;
   time_sec: number;
   bpm: number | null;
+  calories: number | null;
   created_at: string;
 };
 
