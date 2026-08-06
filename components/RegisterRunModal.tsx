@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { parseTimeInput } from "@/lib/utils";
+import { parseTimeInput, fmtPace } from "@/lib/utils";
 
 export default function RegisterRunModal({
   journeyId,
@@ -26,6 +26,14 @@ export default function RegisterRunModal({
   const [bpm, setBpm] = useState("");
   const [calories, setCalories] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const livePace = useMemo(() => {
+    const kmValue = parseFloat(km.replace(",", "."));
+    if (!kmValue || !time) return null;
+    const timeSec = parseTimeInput(time);
+    if (!timeSec) return null;
+    return fmtPace(timeSec, kmValue);
+  }, [km, time]);
 
   async function handleSubmit() {
     const kmValue = parseFloat(km.replace(",", "."));
@@ -66,11 +74,16 @@ export default function RegisterRunModal({
           className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-base font-extrabold outline-none mt-2 mb-4"
         />
 
-        <label className="text-xs font-bold text-muted uppercase tracking-wide">Tempo (mm:ss)</label>
+        <label className="text-xs font-bold text-muted uppercase tracking-wide">Pace</label>
+        <div className="w-full bg-white/[0.03] border border-white/5 rounded-xl px-4 py-3 text-base font-extrabold text-muted mt-2 mb-4">
+          {livePace ? `${livePace} /km` : "preenche km e tempo"}
+        </div>
+
+        <label className="text-xs font-bold text-muted uppercase tracking-wide">Tempo (h:mm:ss ou mm:ss)</label>
         <input
           value={time}
           onChange={(e) => setTime(e.target.value)}
-          placeholder="ex: 28:30"
+          placeholder="ex: 28:30 ou 1:05:30"
           className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-base font-extrabold outline-none mt-2 mb-4"
         />
 

@@ -11,13 +11,22 @@ export function fmtPace(timeSec: number, km: number) {
 }
 
 export function fmtTime(timeSec: number) {
-  const m = Math.floor(timeSec / 60);
+  const h = Math.floor(timeSec / 3600);
+  const m = Math.floor((timeSec % 3600) / 60);
   const s = Math.round(timeSec % 60);
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  }
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 export function parseTimeInput(input: string) {
-  const [mm, ss] = input.split(":").map((v) => parseInt(v, 10) || 0);
+  const parts = input.split(":").map((v) => parseInt(v, 10) || 0);
+  if (parts.length === 3) {
+    const [hh, mm, ss] = parts;
+    return hh * 3600 + mm * 60 + ss;
+  }
+  const [mm, ss] = parts.length === 2 ? parts : [0, parts[0] || 0];
   return mm * 60 + (ss || 0);
 }
 
