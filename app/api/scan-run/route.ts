@@ -20,28 +20,28 @@ export async function POST(request: Request) {
 - batimentos cardíacos médios (bpm), se aparecer
 - calorias, se aparecer
 
-Responda APENAS com um objeto JSON válido, sem nenhum texto antes ou depois, sem marcação de código, no formato exato:
+Responda APENAS com um objeto JSON válido, no formato exato:
 {"km": number ou null, "time_sec": number ou null, "bpm": number ou null, "calories": number ou null}
 
 Se não conseguir ler algum campo com confiança na imagem, use null nesse campo — nunca invente um valor.`;
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY!,
-        "anthropic-version": "2023-06-01",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
+        model: "gpt-4o-mini",
         max_tokens: 300,
+        response_format: { type: "json_object" },
         messages: [
           {
             role: "user",
             content: [
-              { type: "image", source: { type: "base64", media_type: mediaType, data: imageBase64 } },
               { type: "text", text: prompt },
+              { type: "image_url", image_url: { url: `data:${mediaType};base64,${imageBase64}` } },
             ],
           },
         ],
@@ -50,7 +50,7 @@ Se não conseguir ler algum campo com confiança na imagem, use null nesse campo
 
     if (!response.ok) {
       const errBody = await response.text();
-      console.error("Anthropic API error em /api/scan-run:", response.status, errBody);
+      console.error("OpenAI API error em /api/scan-run:", response.status, errBody);
       return NextResponse.json(
         { error: "Não consegui ler essa imagem. Tenta outra foto ou preenche manual." },
         { status: 502 }
@@ -58,14 +58,13 @@ Se não conseguir ler algum campo com confiança na imagem, use null nesse campo
     }
 
     const data = await response.json();
-    const text = (data.content ?? []).map((c: { text?: string }) => c.text ?? "").join("").trim();
-    const cleaned = text.replace(/```json|```/g, "").trim();
+    const text = data.choices?.[0]?.message?.content ?? "";
 
     let parsed;
     try {
-      parsed = JSON.parse(cleaned);
+      parsed = JSON.parse(text);
     } catch (parseErr) {
-      console.error("Não consegui parsear a resposta do Claude em /api/scan-run:", text);
+      console.error("Não consegui parsear a resposta da OpenAI em /api/scan-run:", text);
       return NextResponse.json(
         { error: "Não consegui identificar os dados nessa imagem. Preenche manual abaixo." },
         { status: 200 }

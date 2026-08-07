@@ -78,7 +78,7 @@ app/
   home/page.tsx             — busca as jornadas e estatísticas, delega a tela pro HomeClient
   journey/[id]/page.tsx     — busca os dados e monta a tela da jornada
   api/narrator/route.ts     — gera o comentário do narrador (chama a API do Claude)
-  api/scan-run/route.ts     — lê a foto do relógio/app e extrai km/tempo/bpm/calorias (Claude com visão)
+  api/scan-run/route.ts     — lê a foto do relógio/app e extrai km/tempo/bpm/calorias (OpenAI, com visão)
   api/notify-run/route.ts   — manda a notificação push pros outros membros da jornada
 components/
   HomeClient.tsx          — Home interativa: criar jornada, registrar corrida, reordenação
