@@ -9,13 +9,12 @@ App do grupo de corrida — metas mensais e/ou anuais de km, ranking, narrador c
 - Criar jornada com nome e período (mensal, anual, ou os dois)
 - Editar e excluir jornada (menu de 3 pontinhos, com confirmação antes de excluir)
 - Tela da Jornada: pódio, ranking mensal e/ou anual (com seletor quando os dois estão ativos), histórico, barra de progresso
-- Registrar corrida (km, tempo, batimentos, calorias) — grava direto no Supabase
+- Registrar corrida (km, tempo, batimentos, calorias) — manual ou tirando/enviando uma foto do relógio/app (a IA lê os dados e você confere antes de salvar)
 - Aba Perfil com suas estatísticas pessoais
 - Narrador com IA real (chama a API do Claude a cada corrida registrada, considerando o período selecionado)
 
 ## O que ainda não está aqui (próximos passos)
 
-- Registrar corrida por foto (relógio / print de outro app) lida por IA — ainda vem
 - Upload de foto de perfil (a coluna `avatar_url` já existe no banco, falta a tela de upload)
 - Geração de imagem/pôster da jornada
 - Notificação pros outros membros quando alguém registra
