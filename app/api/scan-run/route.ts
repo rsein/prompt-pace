@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
-  const { imageBase64, mediaType } = await request.json();
+  let imageBase64: string, mediaType: string;
+  try {
+    const body = await request.json();
+    imageBase64 = body.imageBase64;
+    mediaType = body.mediaType;
+  } catch {
+    return NextResponse.json({ error: "Requisição inválida" }, { status: 400 });
+  }
 
   if (!imageBase64 || !mediaType) {
     return NextResponse.json({ error: "Imagem faltando" }, { status: 400 });
@@ -41,13 +48,33 @@ Se não conseguir ler algum campo com confiança na imagem, use null nesse campo
       }),
     });
 
+    if (!response.ok) {
+      const errBody = await response.text();
+      console.error("Anthropic API error em /api/scan-run:", response.status, errBody);
+      return NextResponse.json(
+        { error: "Não consegui ler essa imagem. Tenta outra foto ou preenche manual." },
+        { status: 502 }
+      );
+    }
+
     const data = await response.json();
     const text = (data.content ?? []).map((c: { text?: string }) => c.text ?? "").join("").trim();
     const cleaned = text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleaned);
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error("Não consegui parsear a resposta do Claude em /api/scan-run:", text);
+      return NextResponse.json(
+        { error: "Não consegui identificar os dados nessa imagem. Preenche manual abaixo." },
+        { status: 200 }
+      );
+    }
 
     return NextResponse.json(parsed);
   } catch (e) {
+    console.error("Erro inesperado em /api/scan-run:", e);
     return NextResponse.json({ error: "Não consegui ler essa imagem. Tenta outra foto ou preenche manual." }, { status: 500 });
   }
 }

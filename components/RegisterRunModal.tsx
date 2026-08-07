@@ -43,62 +43,100 @@ export default function RegisterRunModal({
     return fmtPace(timeSec, kmValue);
   }, [km, time]);
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  function resizeImage(file: File, maxDimension = 1280, quality = 0.8): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      const objectUrl = URL.createObjectURL(file);
+
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDimension) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else if (height > maxDimension) {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error("Canvas não suportado"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        URL.revokeObjectURL(objectUrl);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Não consegui abrir essa imagem"));
+      };
+      img.src = objectUrl;
+    });
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setScanError("");
     setScannedFields(new Set());
+    setScanning(true);
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result as string;
+    try {
+      const dataUrl = await resizeImage(file);
       setPhotoPreview(dataUrl);
 
       const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
-      if (!match) return;
+      if (!match) throw new Error("Formato de imagem inválido");
       const [, mediaType, base64] = match;
 
-      setScanning(true);
-      try {
-        const res = await fetch("/api/scan-run", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageBase64: base64, mediaType }),
-        });
-        const data = await res.json();
+      const res = await fetch("/api/scan-run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mediaType }),
+      });
 
-        if (data.error) {
-          setScanError(data.error);
-        } else {
-          const filled = new Set<string>();
-          if (data.km) {
-            setKm(String(data.km));
-            filled.add("km");
-          }
-          if (data.time_sec) {
-            setTime(fmtTime(data.time_sec));
-            filled.add("time");
-          }
-          if (data.bpm) {
-            setBpm(String(data.bpm));
-            filled.add("bpm");
-          }
-          if (data.calories) {
-            setCalories(String(data.calories));
-            filled.add("calories");
-          }
-          setScannedFields(filled);
-          if (filled.size === 0) {
-            setScanError("Não consegui identificar nenhum dado nessa imagem. Preenche manual abaixo.");
-          }
-        }
-      } catch {
-        setScanError("Não consegui ler essa imagem. Tenta outra foto ou preenche manual.");
-      } finally {
-        setScanning(false);
+      if (!res.ok) {
+        throw new Error(`status ${res.status}`);
       }
-    };
-    reader.readAsDataURL(file);
+
+      const data = await res.json();
+
+      if (data.error) {
+        setScanError(data.error);
+      } else {
+        const filled = new Set<string>();
+        if (data.km) {
+          setKm(String(data.km));
+          filled.add("km");
+        }
+        if (data.time_sec) {
+          setTime(fmtTime(data.time_sec));
+          filled.add("time");
+        }
+        if (data.bpm) {
+          setBpm(String(data.bpm));
+          filled.add("bpm");
+        }
+        if (data.calories) {
+          setCalories(String(data.calories));
+          filled.add("calories");
+        }
+        setScannedFields(filled);
+        if (filled.size === 0) {
+          setScanError("Não consegui identificar nenhum dado nessa imagem. Preenche manual abaixo.");
+        }
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? ` (${err.message})` : "";
+      setScanError(`Não consegui ler essa imagem${detail}. Tenta outra foto ou preenche manual.`);
+    } finally {
+      setScanning(false);
+    }
   }
 
   async function handleSubmit() {
