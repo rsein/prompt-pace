@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Plus, Sparkles, Trophy, User, MapPin } from "lucide-react";
+import { ChevronLeft, Plus, Sparkles, Trophy, User, MapPin, Bell, BellOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fmtPace, fmtTime, isThisMonth, isThisYear, currentMonthLabel, currentYearLabel } from "@/lib/utils";
+import { enablePushNotifications, disablePushNotifications, getPushSubscription, isPushSupported } from "@/lib/push";
 import Avatar from "./Avatar";
 import Podium from "./Podium";
 import RegisterRunModal from "./RegisterRunModal";
@@ -28,6 +29,32 @@ export default function JourneyClient({
   const [registerOpen, setRegisterOpen] = useState(false);
   const [aiComment, setAiComment] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMsg, setPushMsg] = useState("");
+
+  useEffect(() => {
+    if (!isPushSupported()) return;
+    getPushSubscription().then((sub) => setPushOn(!!sub));
+  }, []);
+
+  async function togglePush() {
+    setPushBusy(true);
+    setPushMsg("");
+    try {
+      if (pushOn) {
+        await disablePushNotifications(currentUserId);
+        setPushOn(false);
+      } else {
+        await enablePushNotifications(currentUserId);
+        setPushOn(true);
+      }
+    } catch (err: unknown) {
+      setPushMsg(err instanceof Error ? err.message : "Não consegui ativar as notificações.");
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   const showToggle = journey.period_monthly && journey.period_annual;
   const goalKm = periodView === "monthly" ? journey.monthly_goal_km ?? 0 : journey.annual_goal_km ?? 0;
@@ -59,7 +86,14 @@ export default function JourneyClient({
       .eq("journey_id", journey.id)
       .order("created_at", { ascending: false });
     setRuns(data ?? []);
-    generateComment(data ?? []);
+    const comment = await generateComment(data ?? []);
+
+    const runnerName = members.find((m) => m.id === currentUserId)?.name ?? "Alguém";
+    fetch("/api/notify-run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ journeyId: journey.id, runnerId: currentUserId, runnerName, comment }),
+    }).catch(() => {});
   }
 
   function daysLeftInPeriod() {
@@ -99,8 +133,11 @@ export default function JourneyClient({
       });
       const data = await res.json();
       setAiComment(data.comment);
+      return data.comment as string;
     } catch {
-      setAiComment(`${totals[0]?.name} lidera com ${totals[0]?.km.toFixed(1)}km.`);
+      const fallback = `${totals[0]?.name} lidera com ${totals[0]?.km.toFixed(1)}km.`;
+      setAiComment(fallback);
+      return fallback;
     } finally {
       setAiLoading(false);
     }
@@ -243,7 +280,7 @@ export default function JourneyClient({
           </div>
 
           <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5">Suas corridas</div>
-          <div className="bg-surface rounded-2xl p-1.5">
+          <div className="bg-surface rounded-2xl p-1.5 mb-6">
             {myRuns.length === 0 && <div className="p-4 text-sm text-muted">Você ainda não registrou nenhuma corrida.</div>}
             {myRuns.map((r, i) => (
               <div key={r.id} className="flex items-center gap-3 px-2.5 py-2.5" style={{ borderBottom: i < myRuns.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
@@ -253,6 +290,36 @@ export default function JourneyClient({
                 <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>
               </div>
             ))}
+          </div>
+
+          <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5">Notificações</div>
+          <div className="bg-surface rounded-2xl p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                {pushOn ? <Bell size={16} color={journey.theme_a} /> : <BellOff size={16} className="text-muted" />}
+                <div>
+                  <div className="text-sm font-bold">Avisar quando alguém registrar</div>
+                  <div className="text-[11px] text-muted">Recebe o comentário do narrador no celular</div>
+                </div>
+              </div>
+              <button
+                onClick={togglePush}
+                disabled={pushBusy}
+                className="px-3.5 py-2 rounded-full text-xs font-bold shrink-0"
+                style={{
+                  background: pushOn ? "rgba(255,255,255,0.08)" : `${journey.theme_a}33`,
+                  color: pushOn ? "#8890B5" : journey.theme_a,
+                }}
+              >
+                {pushBusy ? "..." : pushOn ? "Desativar" : "Ativar"}
+              </button>
+            </div>
+            {pushMsg && <div className="text-[11px] text-red-400 font-semibold mt-2">{pushMsg}</div>}
+            {!isPushSupported() && (
+              <div className="text-[11px] text-muted mt-2">
+                No iPhone, adiciona o Prompt & Pace à Tela de Início (Compartilhar → Adicionar à Tela de Início) pra notificações funcionarem.
+              </div>
+            )}
           </div>
         </div>
       )}

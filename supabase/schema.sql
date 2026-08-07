@@ -48,12 +48,17 @@ create table if not exists public.runs (
 -- 5. Trigger: cria o profile automaticamente quando alguém se cadastra
 create or replace function public.handle_new_user()
 returns trigger as $$
+declare
+  palette text[] := array['#29F1D6', '#8B5CF6', '#FFC145', '#FF6B9D', '#5CFF8F', '#FF7A5C'];
+  existing_count int;
 begin
+  select count(*) into existing_count from public.profiles;
+
   insert into public.profiles (id, name, color)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
-    '#29F1D6'
+    palette[(existing_count % array_length(palette, 1)) + 1]
   );
   return new;
 end;

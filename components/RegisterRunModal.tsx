@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { X, Camera, Sparkles, RefreshCw } from "lucide-react";
+import { X, Camera, Sparkles, RefreshCw, Image as ImageIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { parseTimeInput, fmtPace, fmtTime } from "@/lib/utils";
 
@@ -32,7 +32,8 @@ export default function RegisterRunModal({
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState("");
   const [scannedFields, setScannedFields] = useState<Set<string>>(new Set());
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const livePace = useMemo(() => {
     const kmValue = parseFloat(km.replace(",", "."));
@@ -167,23 +168,38 @@ export default function RegisterRunModal({
         {mode === "photo" && (
           <div className="mb-5">
             <input
-              ref={fileInputRef}
+              ref={cameraInputRef}
               type="file"
               accept="image/*"
               capture="environment"
               onChange={handleFileSelect}
               className="hidden"
             />
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
 
             {!photoPreview && (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full py-8 rounded-2xl border border-dashed border-white/20 flex flex-col items-center gap-2 text-muted"
-              >
-                <Camera size={22} />
-                <span className="text-sm font-bold">Tirar foto ou enviar print</span>
-                <span className="text-[11px]">Relógio, Strava, Garmin, Apple Watch...</span>
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="flex-1 py-8 rounded-2xl border border-dashed border-white/20 flex flex-col items-center gap-2 text-muted"
+                >
+                  <Camera size={22} />
+                  <span className="text-sm font-bold">Tirar foto</span>
+                </button>
+                <button
+                  onClick={() => galleryInputRef.current?.click()}
+                  className="flex-1 py-8 rounded-2xl border border-dashed border-white/20 flex flex-col items-center gap-2 text-muted"
+                >
+                  <ImageIcon size={22} />
+                  <span className="text-sm font-bold">Da galeria</span>
+                </button>
+              </div>
             )}
 
             {photoPreview && (
@@ -195,7 +211,8 @@ export default function RegisterRunModal({
                     setPhotoPreview(null);
                     setScanError("");
                     setScannedFields(new Set());
-                    if (fileInputRef.current) fileInputRef.current.value = "";
+                    if (cameraInputRef.current) cameraInputRef.current.value = "";
+                    if (galleryInputRef.current) galleryInputRef.current.value = "";
                   }}
                   className="text-xs text-muted font-bold flex items-center gap-1"
                 >
@@ -232,11 +249,6 @@ export default function RegisterRunModal({
               style={fieldStyle("km")}
             />
 
-            <label className="text-xs font-bold text-muted uppercase tracking-wide">Pace</label>
-            <div className="w-full bg-white/[0.03] border border-white/5 rounded-xl px-4 py-3 text-base font-extrabold text-muted mt-2 mb-4">
-              {livePace ? `${livePace} /km` : "preenche km e tempo"}
-            </div>
-
             <label className="text-xs font-bold text-muted uppercase tracking-wide">Tempo (h:mm:ss ou mm:ss)</label>
             <input
               value={time}
@@ -245,6 +257,11 @@ export default function RegisterRunModal({
               className={fieldClass()}
               style={fieldStyle("time")}
             />
+
+            <label className="text-xs font-bold text-muted uppercase tracking-wide">Pace</label>
+            <div className="w-full bg-white/[0.03] border border-white/5 rounded-xl px-4 py-3 text-base font-extrabold text-muted mt-2 mb-4">
+              {livePace ? `${livePace} /km` : "preenche km e tempo"}
+            </div>
 
             <label className="text-xs font-bold text-muted uppercase tracking-wide">Batimentos médios (opcional)</label>
             <input
