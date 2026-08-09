@@ -13,6 +13,7 @@ const LOADING_MESSAGES = [
 ];
 
 const MEDAL_COLORS = ["#FFC145", "#C7CEDD", "#CD8A5A"];
+const SLOGAN = "Prompt pra correr, pace pra provocar.";
 
 export default function PosterModal({
   journey,
@@ -55,23 +56,25 @@ export default function PosterModal({
     const imgH = img.naturalHeight;
     const rows = memberTotals.slice(0, 5);
 
-    // Tamanhos-base das faixas de marca
-    let topBarH = Math.round(w * 0.14);
+    // Tamanhos-base das faixas: topo só com o título da jornada, rodapé com o placar,
+    // e uma faixinha final com a marca "Prompt & Pace" + slogan (só aparece uma vez, aqui embaixo).
+    let topBarH = Math.round(w * 0.095);
     const rowH = Math.round(w * 0.072);
-    const rowsPad = Math.round(w * 0.05);
-    let bottomBarH = Math.round(rows.length * rowH + rowsPad * 1.8);
+    const rowsPad = Math.round(w * 0.045);
+    let scoreBarH = Math.round(rows.length * rowH + rowsPad * 1.8);
+    const footerBarH = Math.round(w * 0.115);
 
-    // Estica as faixas (não a arte) até fechar em 9:16 — formato de Stories do Instagram
+    // Estica topo e placar (não a arte, nem o rodapé da marca) até fechar em 9:16 — formato de Stories
     const targetH = Math.round(w * (16 / 9));
-    const extra = targetH - (topBarH + imgH + bottomBarH);
+    const extra = targetH - (topBarH + imgH + scoreBarH + footerBarH);
     if (extra > 0) {
-      topBarH += Math.round(extra * 0.35);
-      bottomBarH += Math.round(extra * 0.65);
+      topBarH += Math.round(extra * 0.3);
+      scoreBarH += Math.round(extra * 0.7);
     }
 
     const canvas = document.createElement("canvas");
     canvas.width = w;
-    canvas.height = topBarH + imgH + bottomBarH;
+    canvas.height = topBarH + imgH + scoreBarH + footerBarH;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas não suportado");
 
@@ -82,10 +85,10 @@ export default function PosterModal({
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Ilustração da IA, centralizada entre as duas faixas
+    // Ilustração da IA
     ctx.drawImage(img, 0, topBarH, w, imgH);
 
-    // Faixa do topo — logo do app
+    // Faixa do topo — só o nome da jornada
     const topGrad = ctx.createLinearGradient(0, 0, w, 0);
     topGrad.addColorStop(0, `${journey.theme_a}F2`);
     topGrad.addColorStop(1, `${journey.theme_b}F2`);
@@ -94,18 +97,16 @@ export default function PosterModal({
 
     ctx.textAlign = "center";
     ctx.fillStyle = "#05070F";
-    ctx.font = `700 ${Math.round(w * 0.08)}px "Bebas Neue", sans-serif`;
-    ctx.fillText("PROMPT & PACE", w / 2, topBarH * 0.56);
-    ctx.font = `700 ${Math.round(w * 0.032)}px "Manrope", sans-serif`;
-    ctx.fillText(journey.title.toUpperCase(), w / 2, topBarH * 0.82);
+    ctx.font = `700 ${Math.round(w * 0.055)}px "Bebas Neue", sans-serif`;
+    ctx.fillText(journey.title.toUpperCase(), w / 2, topBarH * 0.65);
 
-    // Faixa do rodapé — placar do ranking atual, centralizado verticalmente no espaço disponível
-    const bottomY = topBarH + imgH;
+    // Faixa do placar — ranking atual, centralizado verticalmente no espaço disponível
+    const scoreY = topBarH + imgH;
     ctx.fillStyle = "rgba(5, 7, 15, 0.92)";
-    ctx.fillRect(0, bottomY, w, bottomBarH);
+    ctx.fillRect(0, scoreY, w, scoreBarH);
 
     const contentH = rows.length * rowH;
-    const startY = bottomY + (bottomBarH - contentH) / 2;
+    const startY = scoreY + (scoreBarH - contentH) / 2;
     const pad = Math.round(w * 0.06);
 
     rows.forEach((m, i) => {
@@ -134,6 +135,19 @@ export default function PosterModal({
       ctx.font = `800 ${Math.round(rowH * 0.32)}px "Manrope", sans-serif`;
       ctx.fillText(`${m.km.toFixed(1)} km`, w - pad, badgeY + rowH * 0.1);
     });
+
+    // Faixa final — a marca do app aparece só aqui, uma única vez
+    const footerY = scoreY + scoreBarH;
+    ctx.fillStyle = "#05070F";
+    ctx.fillRect(0, footerY, w, footerBarH);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = journey.theme_a;
+    ctx.font = `700 ${Math.round(w * 0.062)}px "Bebas Neue", sans-serif`;
+    ctx.fillText("PROMPT & PACE", w / 2, footerY + footerBarH * 0.52);
+    ctx.fillStyle = "#8890B5";
+    ctx.font = `600 ${Math.round(w * 0.026)}px "Manrope", sans-serif`;
+    ctx.fillText(SLOGAN, w / 2, footerY + footerBarH * 0.8);
 
     return new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((blob) => {

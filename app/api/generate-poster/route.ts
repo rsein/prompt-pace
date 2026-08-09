@@ -89,7 +89,9 @@ ${peopleDescription}
 
 Composição: deixe uma margem mais limpa e com menos detalhes essenciais perto do topo e da base da imagem (cerca de 15% da altura em cada ponta) — depois vamos sobrepor uma faixa com o nome do app e um placar ali, então evite desenhar rostos ou elementos importantes da cena colados nessas bordas.
 
-Estilo: ilustração colorida, traços expressivos e exagerados tipo animação, bem-humorado e caloroso (nunca zombeteiro ou constrangedor), sem nenhum texto ou palavra escrita na imagem, formato pôster vertical, cores vibrantes com tons próximos de ${themeA} e ${themeB} no fundo.`;
+Estilo: ilustração colorida, traços expressivos e exagerados tipo animação, bem-humorado e caloroso (nunca zombeteiro ou constrangedor), formato pôster vertical, cores vibrantes com tons próximos de ${themeA} e ${themeB} no fundo.
+
+Importante: NÃO desenhe nenhum tipo de texto, letra, número, logotipo, marca, nome de app, faixa de largada/chegada com escrita, placas, painéis, camisetas estampadas ou números de peito com dígitos — a cena deve ser 100% ilustração, sem nenhum caractere escrito em lugar nenhum, mesmo que pareça fazer sentido pro cenário (ex: arco de chegada deve ser liso, sem faixa escrita).`;
 
   try {
     let imageB64: string | null = null;
