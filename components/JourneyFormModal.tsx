@@ -148,18 +148,27 @@ export default function JourneyFormModal({
         return;
       }
 
-      // O criador já entra como membro; evita duplicar se ele também tiver se selecionado na busca
-      const otherMemberIds = selected.map((p) => p.id).filter((id) => id !== userId);
-      const memberRows = [
-        { journey_id: newId, user_id: userId },
-        ...otherMemberIds.map((id) => ({ journey_id: newId, user_id: id })),
-      ];
-      const { error: membersErr } = await supabase.from("journey_members").insert(memberRows);
-      if (membersErr) {
-        console.error("Erro ao adicionar membros na jornada:", membersErr);
-        setError(`Jornada criada, mas não consegui adicionar todo mundo: ${membersErr.message}`);
+      // Primeiro entra você (satisfaz a regra "auth.uid() = user_id"), só depois convida os amigos —
+      // a regra que permite convidar outras pessoas exige que você já seja membro da jornada.
+      const { error: selfErr } = await supabase.from("journey_members").insert({ journey_id: newId, user_id: userId });
+      if (selfErr) {
+        console.error("Erro ao entrar na jornada criada:", selfErr);
+        setError(`Jornada criada, mas não consegui te adicionar como membro: ${selfErr.message}`);
         setSaving(false);
         return;
+      }
+
+      const otherMemberIds = selected.map((p) => p.id).filter((id) => id !== userId);
+      if (otherMemberIds.length > 0) {
+        const { error: membersErr } = await supabase
+          .from("journey_members")
+          .insert(otherMemberIds.map((id) => ({ journey_id: newId, user_id: id })));
+        if (membersErr) {
+          console.error("Erro ao adicionar membros na jornada:", membersErr);
+          setError(`Jornada criada, mas não consegui adicionar todo mundo: ${membersErr.message}`);
+          setSaving(false);
+          return;
+        }
       }
     }
 

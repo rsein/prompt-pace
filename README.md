@@ -82,18 +82,7 @@ Abra `http://localhost:3000`.
 
 ## 4. Criar a primeira jornada
 
-Já dá pra fazer direto pelo app: entra, clica no `+` no canto da Home, preenche nome/período/meta. Isso já te adiciona como membro automaticamente. Os outros membros do grupo entram pela mesma jornada quando você os adiciona — hoje isso ainda é feito via SQL Editor:
-
-```sql
--- pega o id de cada pessoa (ela precisa ter criado conta antes)
-select id, name from public.profiles;
-
--- adiciona como membro da jornada (repete pra cada pessoa)
-insert into public.journey_members (journey_id, user_id)
-values ('ID-DA-JORNADA', 'ID-DA-PESSOA');
-```
-
-(O `ID-DA-JORNADA` você pega no painel do Supabase, tabela `journeys`, ou na URL da jornada dentro do app: `/journey/ID-DA-JORNADA`.)
+Já dá pra fazer direto pelo app: entra, clica no `+` no canto da Home, preenche nome/período/meta. Isso já te adiciona como membro automaticamente. Pra adicionar os outros membros do grupo, busca pelo nome no campo "Participantes" do próprio formulário — a pessoa precisa já ter criado uma conta antes pra aparecer na busca. Se ela ainda não tem conta, é só adicionar depois, editando a jornada (menu de 3 pontinhos no card da jornada → editar).
 
 ## Estrutura
 
