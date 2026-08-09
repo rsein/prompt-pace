@@ -24,7 +24,7 @@ const POSITION_MOODS = [
   "expressão real de exaustão, suando, boca aberta ofegante, quase andando de tão cansado",
 ];
 
-type RankingMember = { id: string; name: string; avatar_url: string | null; color: string; km: number };
+type RankingMember = { id: string; name: string; avatar_url: string | null; color: string; gender: string | null; km: number };
 
 // Transforma o comentário do narrador numa descrição de CENÁRIO visual (ambiente/clima/ação de fundo) —
 // o texto do narrador vira inspiração pro prompt de imagem, nunca palavras escritas na foto.
@@ -45,7 +45,7 @@ async function generateSceneFromNarrator(narratorComment: string): Promise<strin
           {
             role: "system",
             content:
-              "Você descreve cenários visuais pra gerar imagens de pôster de filme de ação/aventura fotorrealista, a partir do comentário de um narrador esportivo brincalhão sobre uma corrida de rua entre amigos. Escreva em português, 2 a 3 frases, só descrevendo ambiente, iluminação e ação de fundo (nunca pessoas específicas, nunca diálogo, nunca palavras que devem aparecer escritas na cena). Capture o clima/humor do comentário — se for vitorioso, faça algo triunfante; se for sofrido ou engraçado, reflita isso no cenário.",
+              "Você transforma o comentário de um narrador esportivo brincalhão (sobre uma corrida de rua entre amigos) numa descrição de CENÁRIO fantasioso pra gerar uma imagem. Pegue as expressões, comparações e exageros usados no comentário AO PÉ DA LETRA e transforme em elementos visuais concretos e fantasiosos — por exemplo: se disser 'voou como um foguete', inclua um efeito visual literal de rastro de fogo ou fumaça de foguete atrás da pessoa; se disser 'correu que nem o vento', mostre folhas e poeira sendo levantadas ao redor; se disser 'quase morreu', exagere dramaticamente a cena com um clima quase apocalíptico; se mencionar algum lugar, animal, comida ou objeto, inclua literalmente esse elemento na cena de forma criativa. Escreva em português, 2 a 4 frases, descrevendo ambiente, iluminação e elementos fantasiosos de fundo (nunca pessoas específicas por nome, nunca texto que deve aparecer escrito na cena). Seja bem literal e criativo com as figuras de linguagem do narrador.",
           },
           {
             role: "user",
@@ -102,13 +102,19 @@ export async function POST(request: Request) {
   );
   const referenceImages = fetched.filter((r): r is { name: string; blob: Blob } => r !== null);
 
+  const GENDER_LABEL: Record<string, string> = {
+    masculino: "gênero masculino (homem)",
+    feminino: "gênero feminino (mulher)",
+  };
+
   const peopleDescription = top
     .map((m, i) => {
       const hasPhoto = referenceImages.some((r) => r.name === m.name);
-      const base = `${POSITION_LABELS[i]}: pessoa chamada "${m.name}", ${POSITION_MOODS[i]}`;
+      const genderNote = m.gender && GENDER_LABEL[m.gender] ? ` A pessoa é do ${GENDER_LABEL[m.gender]} — mantenha esse gênero exatamente, não troque.` : "";
+      const base = `${POSITION_LABELS[i]}: pessoa chamada "${m.name}", ${POSITION_MOODS[i]}.${genderNote} Veste roupa de corrida (camiseta esportiva de manga curta ou regata + shorts/bermuda de corrida + tênis de corrida) — NUNCA calça comprida nem roupa do dia a dia. A camiseta tem o nome "${m.name}" estampado grande e bem legível no peito, como uma camiseta personalizada de corrida de rua.`;
       return hasPhoto
-        ? `${base}. Baseie o rosto REALISTICAMENTE na foto de referência dessa mesma pessoa — mantenha a semelhança física real (rosto, cabelo, barba), sem estilizar como desenho, como se fosse uma foto composta de verdade.`
-        : `${base}. Essa pessoa não enviou foto — represente como um(a) corredor(a) realista genérico, roupa na cor ${m.color}.`;
+        ? `${base} Baseie o rosto REALISTICAMENTE na foto de referência dessa mesma pessoa — mantenha a semelhança física real (rosto, cabelo, barba), sem estilizar como desenho, como se fosse uma foto composta de verdade.`
+        : `${base} Essa pessoa não enviou foto — represente como um(a) corredor(a) realista genérico.`;
     })
     .join("\n");
 
@@ -119,7 +125,7 @@ Cenário: ${scene}
 Personagens correndo (da esquerda pra direita: 2º lugar mais atrás à esquerda, 1º lugar na frente ao centro, 3º lugar mais atrás à direita):
 ${peopleDescription}
 
-Importante: NÃO escreva nenhuma palavra, letra, número, logotipo, faixa com texto, placa ou painel em lugar nenhum da imagem — a cena é 100% fotográfica, sem nenhum caractere escrito. Deixe uma margem mais limpa e com menos detalhes essenciais perto do topo e da base da composição (cerca de 15% da altura em cada ponta), pra funcionar bem quando a gente sobrepuser uma faixa depois. Formato pôster vertical.`;
+Importante: o ÚNICO texto permitido na imagem é o nome de cada personagem estampado na própria camiseta dele, exatamente como descrito acima. NÃO escreva mais nenhuma outra palavra, letra, logotipo, faixa, placa ou painel em lugar nenhum da imagem. Deixe uma margem mais limpa e com menos detalhes essenciais perto do topo e da base da composição (cerca de 15% da altura em cada ponta), pra funcionar bem quando a gente sobrepuser uma faixa depois. Formato pôster vertical.`;
 
   try {
     let imageB64: string | null = null;
@@ -129,7 +135,7 @@ Importante: NÃO escreva nenhuma palavra, letra, número, logotipo, faixa com te
       form.append("model", "gpt-image-1");
       form.append("prompt", prompt);
       form.append("size", "1024x1536");
-      form.append("quality", "medium");
+      form.append("quality", "high");
       referenceImages.forEach((r, i) => form.append("image[]", r.blob, `ref-${i}.jpg`));
 
       const res = await fetch("https://api.openai.com/v1/images/edits", {
@@ -153,7 +159,7 @@ Importante: NÃO escreva nenhuma palavra, letra, número, logotipo, faixa com te
           "Content-Type": "application/json",
           Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         },
-        body: JSON.stringify({ model: "gpt-image-1", prompt, size: "1024x1536", quality: "medium", n: 1 }),
+        body: JSON.stringify({ model: "gpt-image-1", prompt, size: "1024x1536", quality: "high", n: 1 }),
       });
 
       if (!res.ok) {

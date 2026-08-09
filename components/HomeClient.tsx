@@ -53,20 +53,18 @@ export default function HomeClient({
 
   return (
     <div className="px-6 py-8 max-w-md mx-auto pb-28">
-      <div className="flex items-center gap-2.5 mb-6">
-        {profile && (
-          <Link href="/profile" className="shrink-0">
-            <Avatar profile={profile} size={38} />
-          </Link>
-        )}
-        <div className="font-display text-xl tracking-wide">PROMPT & PACE</div>
-      </div>
+      <div className="font-display text-xl tracking-wide mb-3">PROMPT & PACE</div>
+
+      {profile && (
+        <Link href="/profile" className="flex items-center gap-2.5 mb-6 w-fit">
+          <Avatar profile={profile} size={34} />
+          <span className="text-sm font-bold">{profile.name}</span>
+        </Link>
+      )}
 
       <div className="flex items-start justify-between mb-6">
         <div>
-          <div className="text-xs uppercase tracking-widest text-muted font-bold">
-            Bem-vindo de volta{profile?.name ? `, ${profile.name}` : ""}
-          </div>
+          <div className="text-xs uppercase tracking-widest text-muted font-bold">Bem-vindo de volta</div>
           <div className="font-display text-4xl mt-1">Suas jornadas</div>
         </div>
         <button

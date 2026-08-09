@@ -187,6 +187,7 @@ export default function PosterModal({
             name: m.name,
             avatar_url: m.avatar_url,
             color: m.color,
+            gender: m.gender ?? null,
             km: m.km,
           })),
         }),

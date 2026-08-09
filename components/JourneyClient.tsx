@@ -8,6 +8,7 @@ import { fmtPace, fmtTime, isThisMonth, isThisYear, currentMonthLabel, currentYe
 import Avatar from "./Avatar";
 import Podium from "./Podium";
 import RegisterRunModal from "./RegisterRunModal";
+import EditRunModal from "./EditRunModal";
 import PosterModal from "./PosterModal";
 import type { Journey, Profile, Run } from "@/lib/types";
 
@@ -26,6 +27,7 @@ export default function JourneyClient({
   const [runs, setRuns] = useState<Run[]>(initialRuns);
   const [periodView, setPeriodView] = useState<"monthly" | "annual">(journey.period_monthly ? "monthly" : "annual");
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [editingRun, setEditingRun] = useState<Run | null>(null);
   const [posterOpen, setPosterOpen] = useState(false);
   const [aiComment, setAiComment] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -52,6 +54,16 @@ export default function JourneyClient({
       })
       .sort((a, b) => b.km - a.km);
   }, [members, periodRuns]);
+
+  async function reloadRuns() {
+    const { data } = await supabase
+      .from("runs")
+      .select("*")
+      .eq("journey_id", journey.id)
+      .order("created_at", { ascending: false });
+    setRuns(data ?? []);
+    generateComment(data ?? []);
+  }
 
   async function refreshRuns() {
     const { data } = await supabase
@@ -211,8 +223,15 @@ export default function JourneyClient({
         <div className="bg-surface rounded-2xl p-1.5">
           {runs.slice(0, 10).map((r, i) => {
             const member = members.find((m) => m.id === r.user_id)!;
+            const isMine = r.user_id === currentUserId;
             return (
-              <div key={r.id} className="flex items-center gap-3 px-2.5 py-2.5" style={{ borderBottom: i < runs.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+              <button
+                key={r.id}
+                onClick={() => isMine && setEditingRun(r)}
+                disabled={!isMine}
+                className="w-full flex items-center gap-3 px-2.5 py-2.5 text-left"
+                style={{ borderBottom: i < runs.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
+              >
                 <Avatar profile={member} size={28} />
                 <div className="flex-1">
                   <div className="text-sm font-semibold">{member.name}</div>
@@ -223,7 +242,7 @@ export default function JourneyClient({
                   </div>
                 </div>
                 <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -231,7 +250,7 @@ export default function JourneyClient({
         {me && (
           <>
             <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5 mt-6">
-              Sua contribuição
+              Sua contribuição <span className="normal-case font-semibold text-[10px]">(toque numa corrida pra editar)</span>
             </div>
             <div className="grid grid-cols-2 gap-2.5 mb-4">
               <StatCard label="Total" value={`${me.km.toFixed(1)} km`} />
@@ -242,12 +261,17 @@ export default function JourneyClient({
             {myRuns.length > 0 && (
               <div className="bg-surface rounded-2xl p-1.5">
                 {myRuns.slice(0, 5).map((r, i) => (
-                  <div key={r.id} className="flex items-center gap-3 px-2.5 py-2.5" style={{ borderBottom: i < Math.min(myRuns.length, 5) - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+                  <button
+                    key={r.id}
+                    onClick={() => setEditingRun(r)}
+                    className="w-full flex items-center gap-3 px-2.5 py-2.5 text-left"
+                    style={{ borderBottom: i < Math.min(myRuns.length, 5) - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
+                  >
                     <div className="flex-1">
                       <div className="text-sm font-bold">{fmtPace(r.time_sec, Number(r.km))} /km · {fmtTime(r.time_sec)} min</div>
                     </div>
                     <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -273,6 +297,23 @@ export default function JourneyClient({
           themeB={journey.theme_b}
           onClose={() => setRegisterOpen(false)}
           onRegistered={refreshRuns}
+        />
+      )}
+
+      {editingRun && (
+        <EditRunModal
+          run={editingRun}
+          themeA={journey.theme_a}
+          themeB={journey.theme_b}
+          onClose={() => setEditingRun(null)}
+          onSaved={() => {
+            setEditingRun(null);
+            reloadRuns();
+          }}
+          onDeleted={() => {
+            setEditingRun(null);
+            reloadRuns();
+          }}
         />
       )}
 

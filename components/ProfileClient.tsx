@@ -3,12 +3,18 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Bell, BellOff } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { enablePushNotifications, disablePushNotifications, getPushSubscription, isPushSupported } from "@/lib/push";
 import ProfileAvatarUpload from "./ProfileAvatarUpload";
 import WearablesCard from "./WearablesCard";
 import type { Profile } from "@/lib/types";
 
 const THEME_A = "#29F1D6";
+const GENDER_OPTIONS: { v: NonNullable<Profile["gender"]>; l: string }[] = [
+  { v: "masculino", l: "Masculino" },
+  { v: "feminino", l: "Feminino" },
+  { v: "prefiro_nao_dizer", l: "Prefiro não dizer" },
+];
 
 export default function ProfileClient({
   profile,
@@ -19,7 +25,10 @@ export default function ProfileClient({
   userId: string;
   journeys: { id: string; title: string; theme_a: string }[];
 }) {
+  const supabase = createClient();
   const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url);
+  const [gender, setGender] = useState(profile.gender ?? null);
+  const [genderSaving, setGenderSaving] = useState(false);
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMsg, setPushMsg] = useState("");
@@ -50,6 +59,13 @@ export default function ProfileClient({
 
   const syncJourney = journeys.find((j) => j.id === syncJourneyId) ?? journeys[0];
 
+  async function saveGender(v: NonNullable<Profile["gender"]>) {
+    setGender(v);
+    setGenderSaving(true);
+    await supabase.from("profiles").update({ gender: v }).eq("id", profile.id);
+    setGenderSaving(false);
+  }
+
   return (
     <div className="max-w-md mx-auto pb-16 px-5 pt-6">
       <Link href="/home" className="flex items-center gap-1 text-sm font-bold text-muted mb-6 w-fit">
@@ -62,6 +78,27 @@ export default function ProfileClient({
           <div className="font-display text-2xl">{profile.name}</div>
           <div className="text-xs text-muted font-semibold">Seu perfil</div>
         </div>
+      </div>
+
+      <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5">
+        Gênero <span className="normal-case font-semibold text-[10px]">(ajuda a IA a acertar seu rosto no pôster)</span>
+      </div>
+      <div className="flex gap-2 mb-6">
+        {GENDER_OPTIONS.map((opt) => (
+          <button
+            key={opt.v}
+            onClick={() => saveGender(opt.v)}
+            disabled={genderSaving}
+            className="flex-1 py-2.5 rounded-lg text-xs font-bold border"
+            style={{
+              background: gender === opt.v ? "rgba(41,241,214,0.15)" : "transparent",
+              borderColor: gender === opt.v ? THEME_A : "rgba(255,255,255,0.1)",
+              color: gender === opt.v ? THEME_A : "#8890B5",
+            }}
+          >
+            {opt.l}
+          </button>
+        ))}
       </div>
 
       <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5">Notificações</div>

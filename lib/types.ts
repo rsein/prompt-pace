@@ -3,6 +3,7 @@ export type Profile = {
   name: string;
   avatar_url: string | null;
   color: string;
+  gender?: "masculino" | "feminino" | "prefiro_nao_dizer" | null;
 };
 
 export type Journey = {

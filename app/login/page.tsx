@@ -9,6 +9,7 @@ export default function LoginPage() {
   const supabase = createClient();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [name, setName] = useState("");
+  const [gender, setGender] = useState<"masculino" | "feminino" | "prefiro_nao_dizer" | "">("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +23,7 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { name } },
+        options: { data: { name, gender: gender || null } },
       });
       if (error) {
         setError(error.message);
@@ -74,6 +75,34 @@ export default function LoginPage() {
             onChange={(e) => setName(e.target.value)}
             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-semibold outline-none"
           />
+        )}
+        {mode === "signup" && (
+          <div>
+            <div className="text-xs text-muted font-bold mb-1.5 px-1">
+              Gênero <span className="font-normal">(ajuda a IA a acertar seu rosto no pôster do ranking)</span>
+            </div>
+            <div className="flex gap-2">
+              {[
+                { v: "masculino", l: "Masculino" },
+                { v: "feminino", l: "Feminino" },
+                { v: "prefiro_nao_dizer", l: "Prefiro não dizer" },
+              ].map((opt) => (
+                <button
+                  key={opt.v}
+                  type="button"
+                  onClick={() => setGender(opt.v as typeof gender)}
+                  className="flex-1 py-2.5 rounded-lg text-xs font-bold border"
+                  style={{
+                    background: gender === opt.v ? "rgba(41,241,214,0.15)" : "transparent",
+                    borderColor: gender === opt.v ? "#29F1D6" : "rgba(255,255,255,0.1)",
+                    color: gender === opt.v ? "#29F1D6" : "#8890B5",
+                  }}
+                >
+                  {opt.l}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
         <input
           placeholder="E-mail"
