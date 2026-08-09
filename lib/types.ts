@@ -29,10 +29,21 @@ export type Run = {
   bpm: number | null;
   calories: number | null;
   created_at: string;
+  source?: string;
+  external_id?: string | null;
 };
 
 export type MemberTotal = Profile & {
   km: number;
   runsCount: number;
   timeSec: number;
+};
+
+export type WearableProvider = "strava" | "garmin" | "samsung";
+
+export type WearableStatus = {
+  provider: WearableProvider;
+  connected: boolean;
+  lastSyncedAt: string | null;
+  available: boolean; // false = ainda não dá pra conectar (aprovação pendente do provedor)
 };

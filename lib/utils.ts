@@ -2,6 +2,53 @@ export function initials(name: string) {
   return name.slice(0, 2).toUpperCase();
 }
 
+// Redimensiona uma imagem no navegador antes de subir/enviar (evita fotos gigantes de celular).
+// Retorna uma data URL "data:image/jpeg;base64,...".
+export function resizeImageFile(file: File, maxDimension = 1280, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height && width > maxDimension) {
+        height = Math.round((height * maxDimension) / width);
+        width = maxDimension;
+      } else if (height > maxDimension) {
+        width = Math.round((width * maxDimension) / height);
+        height = maxDimension;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Canvas não suportado"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(objectUrl);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Não consegui abrir essa imagem"));
+    };
+    img.src = objectUrl;
+  });
+}
+
+export function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, base64] = dataUrl.split(",");
+  const mime = header.match(/data:(.+);base64/)?.[1] ?? "image/jpeg";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
 export function fmtPace(timeSec: number, km: number) {
   if (!km) return "--:--";
   const secPerKm = timeSec / km;

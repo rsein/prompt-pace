@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef } from "react";
 import { X, Camera, Sparkles, RefreshCw, Image as ImageIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { parseTimeInput, fmtPace, fmtTime } from "@/lib/utils";
+import { parseTimeInput, fmtPace, fmtTime, resizeImageFile } from "@/lib/utils";
 
 export default function RegisterRunModal({
   journeyId,
@@ -43,42 +43,6 @@ export default function RegisterRunModal({
     return fmtPace(timeSec, kmValue);
   }, [km, time]);
 
-  function resizeImage(file: File, maxDimension = 1280, quality = 0.8): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const img = new window.Image();
-      const objectUrl = URL.createObjectURL(file);
-
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > height && width > maxDimension) {
-          height = Math.round((height * maxDimension) / width);
-          width = maxDimension;
-        } else if (height > maxDimension) {
-          width = Math.round((width * maxDimension) / height);
-          height = maxDimension;
-        }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          URL.revokeObjectURL(objectUrl);
-          reject(new Error("Canvas não suportado"));
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        URL.revokeObjectURL(objectUrl);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        reject(new Error("Não consegui abrir essa imagem"));
-      };
-      img.src = objectUrl;
-    });
-  }
-
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -87,7 +51,7 @@ export default function RegisterRunModal({
     setScanning(true);
 
     try {
-      const dataUrl = await resizeImage(file);
+      const dataUrl = await resizeImageFile(file);
       setPhotoPreview(dataUrl);
 
       const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
