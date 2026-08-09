@@ -53,17 +53,22 @@ export async function POST(request: Request) {
   const top = ranking.slice(0, 3);
   const scene = SCENES[Math.floor(Math.random() * SCENES.length)];
 
-  // Baixa as fotos de perfil disponíveis pra usar como referência visual na geração
+  // Baixa as fotos de perfil disponíveis pra usar como referência visual na geração (em paralelo, pra ganhar tempo)
   const referenceImages: { name: string; blob: Blob }[] = [];
-  for (const m of top) {
-    if (!m.avatar_url) continue;
-    try {
-      const res = await fetch(m.avatar_url);
-      if (res.ok) referenceImages.push({ name: m.name, blob: await res.blob() });
-    } catch {
-      // segue sem essa referência específica
-    }
-  }
+  const withPhoto = top.filter((m) => m.avatar_url);
+  const fetched = await Promise.all(
+    withPhoto.map(async (m) => {
+      try {
+        const res = await fetch(m.avatar_url!);
+        return res.ok ? { name: m.name, blob: await res.blob() } : null;
+      } catch {
+        return null;
+      }
+    })
+  );
+  fetched.forEach((r) => {
+    if (r) referenceImages.push(r);
+  });
 
   const peopleDescription = top
     .map((m, i) => {
@@ -94,6 +99,7 @@ Estilo: ilustração colorida, traços expressivos e exagerados tipo animação,
       form.append("model", "gpt-image-1");
       form.append("prompt", prompt);
       form.append("size", "1024x1536");
+      form.append("quality", "medium");
       referenceImages.forEach((r, i) => form.append("image[]", r.blob, `ref-${i}.jpg`));
 
       const res = await fetch("https://api.openai.com/v1/images/edits", {
@@ -117,7 +123,7 @@ Estilo: ilustração colorida, traços expressivos e exagerados tipo animação,
           "Content-Type": "application/json",
           Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         },
-        body: JSON.stringify({ model: "gpt-image-1", prompt, size: "1024x1536", n: 1 }),
+        body: JSON.stringify({ model: "gpt-image-1", prompt, size: "1024x1536", quality: "medium", n: 1 }),
       });
 
       if (!res.ok) {

@@ -121,7 +121,8 @@ export default function JourneyFormModal({
     if (isEdit) {
       const { error: err } = await supabase.from("journeys").update(payload).eq("id", journey!.id);
       if (err) {
-        setError("Não consegui salvar. Tenta de novo.");
+        console.error("Erro ao salvar jornada:", err);
+        setError(err.message || "Não consegui salvar. Tenta de novo.");
         setSaving(false);
         return;
       }
@@ -135,23 +136,31 @@ export default function JourneyFormModal({
       }
     } else {
       const preset = THEME_PRESETS[Math.floor(Math.random() * THEME_PRESETS.length)];
-      const { data, error: err } = await supabase
+      const newId = crypto.randomUUID();
+      const { error: err } = await supabase
         .from("journeys")
-        .insert({ ...payload, theme_a: preset.a, theme_b: preset.b, created_by: userId })
-        .select()
-        .single();
+        .insert({ id: newId, ...payload, theme_a: preset.a, theme_b: preset.b, created_by: userId });
 
-      if (err || !data) {
-        setError("Não consegui criar. Tenta de novo.");
+      if (err) {
+        console.error("Erro ao criar jornada:", err);
+        setError(err.message || "Não consegui criar. Tenta de novo.");
         setSaving(false);
         return;
       }
 
+      // O criador já entra como membro; evita duplicar se ele também tiver se selecionado na busca
+      const otherMemberIds = selected.map((p) => p.id).filter((id) => id !== userId);
       const memberRows = [
-        { journey_id: data.id, user_id: userId },
-        ...selected.map((p) => ({ journey_id: data.id, user_id: p.id })),
+        { journey_id: newId, user_id: userId },
+        ...otherMemberIds.map((id) => ({ journey_id: newId, user_id: id })),
       ];
-      await supabase.from("journey_members").insert(memberRows);
+      const { error: membersErr } = await supabase.from("journey_members").insert(memberRows);
+      if (membersErr) {
+        console.error("Erro ao adicionar membros na jornada:", membersErr);
+        setError(`Jornada criada, mas não consegui adicionar todo mundo: ${membersErr.message}`);
+        setSaving(false);
+        return;
+      }
     }
 
     setSaving(false);

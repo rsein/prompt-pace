@@ -33,8 +33,8 @@ export default function PosterModal({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const objectUrlRef = useRef<string | null>(null);
 
-  // Desenha a logo do app no topo e o placar do ranking no rodapé, por cima da ilustração gerada pela IA.
-  // Fazemos isso no Canvas em vez de pedir texto pra IA porque nomes/números ficam sempre legíveis assim.
+  // Desenha a logo do app no topo e o placar do ranking no rodapé, por cima da ilustração gerada pela IA —
+  // e monta tudo já no formato Stories do Instagram (9:16), pra ficar prontinho pra postar.
   async function composite(imageUrl: string): Promise<Blob> {
     try {
       await document.fonts.load('700 60px "Bebas Neue"');
@@ -51,43 +51,65 @@ export default function PosterModal({
       el.src = imageUrl;
     });
 
+    const w = img.naturalWidth;
+    const imgH = img.naturalHeight;
+    const rows = memberTotals.slice(0, 5);
+
+    // Tamanhos-base das faixas de marca
+    let topBarH = Math.round(w * 0.14);
+    const rowH = Math.round(w * 0.072);
+    const rowsPad = Math.round(w * 0.05);
+    let bottomBarH = Math.round(rows.length * rowH + rowsPad * 1.8);
+
+    // Estica as faixas (não a arte) até fechar em 9:16 — formato de Stories do Instagram
+    const targetH = Math.round(w * (16 / 9));
+    const extra = targetH - (topBarH + imgH + bottomBarH);
+    if (extra > 0) {
+      topBarH += Math.round(extra * 0.35);
+      bottomBarH += Math.round(extra * 0.65);
+    }
+
     const canvas = document.createElement("canvas");
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
+    canvas.width = w;
+    canvas.height = topBarH + imgH + bottomBarH;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas não suportado");
-    ctx.drawImage(img, 0, 0);
 
-    const w = canvas.width;
+    // Fundo geral (cobre qualquer respiro extra com o degradê do tema, nunca fica em branco)
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    bgGrad.addColorStop(0, journey.theme_a);
+    bgGrad.addColorStop(1, journey.theme_b);
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Ilustração da IA, centralizada entre as duas faixas
+    ctx.drawImage(img, 0, topBarH, w, imgH);
 
     // Faixa do topo — logo do app
-    const topH = Math.round(w * 0.17);
     const topGrad = ctx.createLinearGradient(0, 0, w, 0);
-    topGrad.addColorStop(0, `${journey.theme_a}EE`);
-    topGrad.addColorStop(1, `${journey.theme_b}EE`);
+    topGrad.addColorStop(0, `${journey.theme_a}F2`);
+    topGrad.addColorStop(1, `${journey.theme_b}F2`);
     ctx.fillStyle = topGrad;
-    ctx.fillRect(0, 0, w, topH);
+    ctx.fillRect(0, 0, w, topBarH);
 
     ctx.textAlign = "center";
     ctx.fillStyle = "#05070F";
-    ctx.font = `700 ${Math.round(w * 0.078)}px "Bebas Neue", sans-serif`;
-    ctx.fillText("PROMPT & PACE", w / 2, topH * 0.62);
-    ctx.font = `700 ${Math.round(w * 0.03)}px "Manrope", sans-serif`;
-    ctx.fillText(journey.title.toUpperCase(), w / 2, topH * 0.9);
+    ctx.font = `700 ${Math.round(w * 0.08)}px "Bebas Neue", sans-serif`;
+    ctx.fillText("PROMPT & PACE", w / 2, topBarH * 0.56);
+    ctx.font = `700 ${Math.round(w * 0.032)}px "Manrope", sans-serif`;
+    ctx.fillText(journey.title.toUpperCase(), w / 2, topBarH * 0.82);
 
-    // Faixa do rodapé — placar do ranking atual
-    const rows = memberTotals.slice(0, 6);
-    const rowH = Math.round(w * 0.08);
-    const bottomPad = Math.round(w * 0.05);
-    const bottomH = rowH * rows.length + bottomPad * 1.6;
-    const bottomY = canvas.height - bottomH;
+    // Faixa do rodapé — placar do ranking atual, centralizado verticalmente no espaço disponível
+    const bottomY = topBarH + imgH;
+    ctx.fillStyle = "rgba(5, 7, 15, 0.92)";
+    ctx.fillRect(0, bottomY, w, bottomBarH);
 
-    ctx.fillStyle = "rgba(5, 7, 15, 0.88)";
-    ctx.fillRect(0, bottomY, w, bottomH);
-
+    const contentH = rows.length * rowH;
+    const startY = bottomY + (bottomBarH - contentH) / 2;
     const pad = Math.round(w * 0.06);
+
     rows.forEach((m, i) => {
-      const y = bottomY + bottomPad + i * rowH;
+      const y = startY + i * rowH;
       const badgeR = rowH * 0.32;
       const badgeX = pad + badgeR;
       const badgeY = y + rowH * 0.34;
