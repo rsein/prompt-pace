@@ -129,6 +129,7 @@ export default function JourneyClient({
           goalKm: goalKm || "sem meta",
           totalKm: total.toFixed(1),
           daysLeft: daysLeftInPeriod(),
+          previousComment: aiComment || undefined,
         }),
       });
       const data = await res.json();

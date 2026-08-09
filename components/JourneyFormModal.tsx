@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Search, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { Journey } from "@/lib/types";
+import type { Journey, Profile } from "@/lib/types";
 
 const THEME_PRESETS = [
   { a: "#29F1D6", b: "#8B5CF6" },
@@ -33,6 +33,60 @@ export default function JourneyFormModal({
   const [annualGoal, setAnnualGoal] = useState(journey?.annual_goal_km ? String(journey.annual_goal_km) : "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Participantes: busca por nome + sugestões de quem já correu com você antes
+  const [suggestions, setSuggestions] = useState<Profile[]>([]);
+  const [query, setQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Profile[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selected, setSelected] = useState<Profile[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const { data: myMemberships } = await supabase.from("journey_members").select("journey_id").eq("user_id", userId);
+      const journeyIds = (myMemberships ?? []).map((m) => m.journey_id);
+      if (journeyIds.length === 0) return;
+
+      const { data: coMembers } = await supabase
+        .from("journey_members")
+        .select("profiles(*)")
+        .in("journey_id", journeyIds)
+        .neq("user_id", userId);
+
+      const unique = new Map<string, Profile>();
+      (coMembers ?? []).forEach((row: any) => {
+        if (row.profiles) unique.set(row.profiles.id, row.profiles);
+      });
+      setSuggestions(Array.from(unique.values()));
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      setSearching(true);
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .ilike("name", `%${query.trim()}%`)
+        .neq("id", userId)
+        .limit(8);
+      setSearchResults(data ?? []);
+      setSearching(false);
+    }, 300);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
+  function toggleSelect(profile: Profile) {
+    setSelected((prev) =>
+      prev.some((p) => p.id === profile.id) ? prev.filter((p) => p.id !== profile.id) : [...prev, profile]
+    );
+  }
 
   async function handleSubmit() {
     setError("");
@@ -71,6 +125,14 @@ export default function JourneyFormModal({
         setSaving(false);
         return;
       }
+      if (selected.length > 0) {
+        await supabase
+          .from("journey_members")
+          .upsert(
+            selected.map((p) => ({ journey_id: journey!.id, user_id: p.id })),
+            { onConflict: "journey_id,user_id", ignoreDuplicates: true }
+          );
+      }
     } else {
       const preset = THEME_PRESETS[Math.floor(Math.random() * THEME_PRESETS.length)];
       const { data, error: err } = await supabase
@@ -85,7 +147,11 @@ export default function JourneyFormModal({
         return;
       }
 
-      await supabase.from("journey_members").insert({ journey_id: data.id, user_id: userId });
+      const memberRows = [
+        { journey_id: data.id, user_id: userId },
+        ...selected.map((p) => ({ journey_id: data.id, user_id: p.id })),
+      ];
+      await supabase.from("journey_members").insert(memberRows);
     }
 
     setSaving(false);
@@ -167,6 +233,86 @@ export default function JourneyFormModal({
             />
           </>
         )}
+
+        <>
+          <label className="text-xs font-bold text-muted uppercase tracking-wide">
+            {isEdit ? "Adicionar participantes" : "Participantes"}
+          </label>
+
+            {selected.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2 mb-2">
+                {selected.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => toggleSelect(p)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold"
+                    style={{ background: `${p.color}33`, color: p.color }}
+                  >
+                    {p.name} <X size={11} />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="relative mt-2 mb-2">
+              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar por nome..."
+                className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-3 text-sm font-semibold outline-none"
+              />
+            </div>
+
+            {query.trim().length >= 2 && (
+              <div className="mb-3">
+                {searching && <div className="text-xs text-muted px-1 py-1.5">Buscando...</div>}
+                {!searching && searchResults.length === 0 && (
+                  <div className="text-xs text-muted px-1 py-1.5">Ninguém encontrado com esse nome.</div>
+                )}
+                {searchResults.map((p) => {
+                  const isSelected = selected.some((s) => s.id === p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => toggleSelect(p)}
+                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl mb-1"
+                      style={{ background: isSelected ? `${p.color}22` : "rgba(255,255,255,0.03)" }}
+                    >
+                      <span className="text-sm font-semibold">{p.name}</span>
+                      {isSelected && <Check size={14} color={p.color} />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {suggestions.length > 0 && query.trim().length < 2 && (
+              <div className="mb-4">
+                <div className="text-[11px] text-muted font-semibold mb-1.5">Já correu com você antes:</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {suggestions
+                    .filter((s) => !selected.some((sel) => sel.id === s.id))
+                    .map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => toggleSelect(p)}
+                        className="px-2.5 py-1.5 rounded-full text-xs font-bold"
+                        style={{ background: "rgba(255,255,255,0.06)", color: "#F4F6FF" }}
+                      >
+                        + {p.name}
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            <div className="text-[11px] text-muted mb-4 leading-relaxed">
+              {isEdit
+                ? "Quem você marcar aqui entra na jornada assim que salvar."
+                : "Você entra automaticamente. Só quem você buscar/marcar aqui entra também."}
+            </div>
+          </>
 
         {error && <div className="text-sm text-red-400 font-semibold mb-4">{error}</div>}
 
