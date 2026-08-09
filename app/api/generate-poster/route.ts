@@ -24,7 +24,16 @@ const POSITION_MOODS = [
   "expressão real de exaustão, suando, boca aberta ofegante, quase andando de tão cansado",
 ];
 
-type RankingMember = { id: string; name: string; avatar_url: string | null; color: string; gender: string | null; km: number };
+type RankingMember = {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  color: string;
+  gender: string | null;
+  ethnicity?: string | null;
+  age?: number | null;
+  km: number;
+};
 
 // Transforma o comentário do narrador numa descrição de CENÁRIO visual (ambiente/clima/ação de fundo) —
 // o texto do narrador vira inspiração pro prompt de imagem, nunca palavras escritas na foto.
@@ -111,10 +120,12 @@ export async function POST(request: Request) {
     .map((m, i) => {
       const hasPhoto = referenceImages.some((r) => r.name === m.name);
       const genderNote = m.gender && GENDER_LABEL[m.gender] ? ` A pessoa é do ${GENDER_LABEL[m.gender]} — mantenha esse gênero exatamente, não troque.` : "";
-      const base = `${POSITION_LABELS[i]}: pessoa chamada "${m.name}", ${POSITION_MOODS[i]}.${genderNote} Veste roupa de corrida (camiseta esportiva de manga curta ou regata + shorts/bermuda de corrida + tênis de corrida) — NUNCA calça comprida nem roupa do dia a dia. A camiseta tem o nome "${m.name}" estampado grande e bem legível no peito, como uma camiseta personalizada de corrida de rua.`;
+      const ethnicityNote = m.ethnicity && m.ethnicity !== "Prefiro não dizer" ? ` Etnia/tom de pele: ${m.ethnicity}.` : "";
+      const ageNote = m.age ? ` Aparenta aproximadamente ${m.age} anos.` : "";
+      const base = `${POSITION_LABELS[i]}: pessoa chamada "${m.name}", ${POSITION_MOODS[i]}.${genderNote}${ethnicityNote}${ageNote} Veste roupa de corrida (camiseta esportiva de manga curta ou regata + shorts/bermuda de corrida + tênis de corrida) — NUNCA calça comprida nem roupa do dia a dia. A camiseta tem o nome "${m.name}" estampado grande e bem legível no peito, como uma camiseta personalizada de corrida de rua.`;
       return hasPhoto
         ? `${base} Baseie o rosto REALISTICAMENTE na foto de referência dessa mesma pessoa — mantenha a semelhança física real (rosto, cabelo, barba), sem estilizar como desenho, como se fosse uma foto composta de verdade.`
-        : `${base} Essa pessoa não enviou foto — represente como um(a) corredor(a) realista genérico.`;
+        : `${base} Essa pessoa não enviou foto — represente como um(a) corredor(a) realista genérico, respeitando as características acima.`;
     })
     .join("\n");
 

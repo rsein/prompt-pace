@@ -23,5 +23,5 @@ export default async function ProfilePage() {
 
   if (!profile) redirect("/login");
 
-  return <ProfileClient profile={profile} userId={user.id} journeys={journeys} />;
+  return <ProfileClient profile={profile} userId={user.id} email={user.email ?? ""} journeys={journeys} />;
 }

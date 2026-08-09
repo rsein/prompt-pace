@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Plus, Sparkles, MapPin } from "lucide-react";
+import { ChevronLeft, Plus, Sparkles, MapPin, Share2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fmtPace, fmtTime, isThisMonth, isThisYear, currentMonthLabel, currentYearLabel } from "@/lib/utils";
 import Avatar from "./Avatar";
@@ -31,6 +31,7 @@ export default function JourneyClient({
   const [posterOpen, setPosterOpen] = useState(false);
   const [aiComment, setAiComment] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [inviteMsg, setInviteMsg] = useState("");
 
   const showToggle = journey.period_monthly && journey.period_annual;
   const goalKm = periodView === "monthly" ? journey.monthly_goal_km ?? 0 : journey.annual_goal_km ?? 0;
@@ -138,6 +139,17 @@ export default function JourneyClient({
   const me = memberTotals.find((m) => m.id === currentUserId);
   const myRuns = runs.filter((r) => r.user_id === currentUserId);
 
+  async function handleInvite() {
+    const url = `${window.location.origin}/join/${journey.id}`;
+    if (navigator.share) {
+      navigator.share({ title: journey.title, text: `Vem correr comigo na jornada "${journey.title}"!`, url }).catch(() => {});
+    } else {
+      await navigator.clipboard.writeText(url);
+      setInviteMsg("Link copiado!");
+      setTimeout(() => setInviteMsg(""), 2000);
+    }
+  }
+
   return (
     <div className="max-w-md mx-auto pb-28 relative min-h-screen">
       <div
@@ -146,9 +158,14 @@ export default function JourneyClient({
           background: `radial-gradient(120% 140% at 20% -10%, ${journey.theme_b}55, transparent), radial-gradient(120% 140% at 100% 0%, ${journey.theme_a}44, transparent)`,
         }}
       >
-        <Link href="/home" className="flex items-center gap-1 text-sm font-bold text-muted mb-4 w-fit">
-          <ChevronLeft size={16} /> Home
-        </Link>
+        <div className="flex items-center justify-between mb-4">
+          <Link href="/home" className="flex items-center gap-1 text-sm font-bold text-muted w-fit">
+            <ChevronLeft size={16} /> Home
+          </Link>
+          <button onClick={handleInvite} className="flex items-center gap-1.5 text-xs font-bold" style={{ color: journey.theme_a }}>
+            <Share2 size={13} /> {inviteMsg || "Convidar"}
+          </button>
+        </div>
 
         <div className="text-[11px] font-extrabold uppercase tracking-wide" style={{ color: journey.theme_a }}>
           {journey.season}

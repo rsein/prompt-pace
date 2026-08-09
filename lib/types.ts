@@ -4,6 +4,11 @@ export type Profile = {
   avatar_url: string | null;
   color: string;
   gender?: "masculino" | "feminino" | "prefiro_nao_dizer" | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  ethnicity?: string | null;
+  age?: number | null;
+  phone?: string | null;
 };
 
 export type Journey = {
