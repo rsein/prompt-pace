@@ -1,17 +1,14 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Plus, Sparkles, Trophy, User, MapPin, Bell, BellOff } from "lucide-react";
+import { ChevronLeft, Plus, Sparkles, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fmtPace, fmtTime, isThisMonth, isThisYear, currentMonthLabel, currentYearLabel } from "@/lib/utils";
-import { enablePushNotifications, disablePushNotifications, getPushSubscription, isPushSupported } from "@/lib/push";
 import Avatar from "./Avatar";
 import Podium from "./Podium";
 import RegisterRunModal from "./RegisterRunModal";
-import ProfileAvatarUpload from "./ProfileAvatarUpload";
 import PosterModal from "./PosterModal";
-import WearablesCard from "./WearablesCard";
 import type { Journey, Profile, Run } from "@/lib/types";
 
 export default function JourneyClient({
@@ -27,43 +24,11 @@ export default function JourneyClient({
 }) {
   const supabase = createClient();
   const [runs, setRuns] = useState<Run[]>(initialRuns);
-  const [localMembers, setLocalMembers] = useState<Profile[]>(members);
-  const [tab, setTab] = useState<"jornada" | "perfil">("jornada");
   const [periodView, setPeriodView] = useState<"monthly" | "annual">(journey.period_monthly ? "monthly" : "annual");
   const [registerOpen, setRegisterOpen] = useState(false);
   const [posterOpen, setPosterOpen] = useState(false);
   const [aiComment, setAiComment] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const [pushOn, setPushOn] = useState(false);
-  const [pushBusy, setPushBusy] = useState(false);
-  const [pushMsg, setPushMsg] = useState("");
-
-  function handleAvatarUpdated(url: string) {
-    setLocalMembers((prev) => prev.map((m) => (m.id === currentUserId ? { ...m, avatar_url: url } : m)));
-  }
-
-  useEffect(() => {
-    if (!isPushSupported()) return;
-    getPushSubscription().then((sub) => setPushOn(!!sub));
-  }, []);
-
-  async function togglePush() {
-    setPushBusy(true);
-    setPushMsg("");
-    try {
-      if (pushOn) {
-        await disablePushNotifications(currentUserId);
-        setPushOn(false);
-      } else {
-        await enablePushNotifications(currentUserId);
-        setPushOn(true);
-      }
-    } catch (err: unknown) {
-      setPushMsg(err instanceof Error ? err.message : "Não consegui ativar as notificações.");
-    } finally {
-      setPushBusy(false);
-    }
-  }
 
   const showToggle = journey.period_monthly && journey.period_annual;
   const goalKm = periodView === "monthly" ? journey.monthly_goal_km ?? 0 : journey.annual_goal_km ?? 0;
@@ -78,7 +43,7 @@ export default function JourneyClient({
   const pct = goalKm ? Math.min(100, Math.round((totalKm / goalKm) * 100)) : 0;
 
   const memberTotals = useMemo(() => {
-    return localMembers
+    return members
       .map((m) => {
         const mine = periodRuns.filter((r) => r.user_id === m.id);
         const km = mine.reduce((s, r) => s + Number(r.km), 0);
@@ -86,7 +51,7 @@ export default function JourneyClient({
         return { ...m, km, runsCount: mine.length, timeSec };
       })
       .sort((a, b) => b.km - a.km);
-  }, [localMembers, periodRuns]);
+  }, [members, periodRuns]);
 
   async function refreshRuns() {
     const { data } = await supabase
@@ -97,7 +62,7 @@ export default function JourneyClient({
     setRuns(data ?? []);
     const comment = await generateComment(data ?? []);
 
-    const runnerName = localMembers.find((m) => m.id === currentUserId)?.name ?? "Alguém";
+    const runnerName = members.find((m) => m.id === currentUserId)?.name ?? "Alguém";
     fetch("/api/notify-run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -120,7 +85,7 @@ export default function JourneyClient({
     const relevant = currentRuns.filter((r) =>
       periodView === "monthly" ? isThisMonth(r.created_at) : isThisYear(r.created_at)
     );
-    const totals = localMembers
+    const totals = members
       .map((m) => {
         const km = relevant.filter((r) => r.user_id === m.id).reduce((s, r) => s + Number(r.km), 0);
         return { name: m.name, km };
@@ -159,7 +124,6 @@ export default function JourneyClient({
   }, [periodView]);
 
   const me = memberTotals.find((m) => m.id === currentUserId);
-  const myRank = memberTotals.findIndex((m) => m.id === currentUserId) + 1;
   const myRuns = runs.filter((r) => r.user_id === currentUserId);
 
   return (
@@ -224,136 +188,72 @@ export default function JourneyClient({
         </div>
       </div>
 
-      <div className="flex border-b border-white/10">
-        {[
-          { id: "jornada" as const, label: "Jornada", icon: <Trophy size={14} /> },
-          { id: "perfil" as const, label: "Perfil", icon: <User size={14} /> },
-        ].map((t) => (
+      <div className="px-5 pt-5">
+        <Podium memberTotals={memberTotals} />
+
+        {memberTotals.filter((m) => m.km > 0).length >= 2 && (
           <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className="flex-1 text-center py-3 text-sm font-bold flex items-center justify-center gap-1.5"
+            onClick={() => setPosterOpen(true)}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-extrabold mt-1 mb-2"
             style={{
-              color: tab === t.id ? journey.theme_a : "#8890B5",
-              borderBottom: tab === t.id ? `2px solid ${journey.theme_a}` : "2px solid transparent",
+              background: `linear-gradient(90deg, ${journey.theme_a}22, ${journey.theme_b}22)`,
+              border: `1px solid ${journey.theme_a}55`,
+              color: journey.theme_a,
             }}
           >
-            {t.icon} {t.label}
+            <Sparkles size={15} /> Gerar imagem do ranking com IA
           </button>
-        ))}
-      </div>
+        )}
 
-      {tab === "jornada" && (
-        <div className="px-5">
-          <Podium memberTotals={memberTotals} />
-
-          {memberTotals.filter((m) => m.km > 0).length >= 2 && (
-            <button
-              onClick={() => setPosterOpen(true)}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-extrabold mt-1 mb-2"
-              style={{
-                background: `linear-gradient(90deg, ${journey.theme_a}22, ${journey.theme_b}22)`,
-                border: `1px solid ${journey.theme_a}55`,
-                color: journey.theme_a,
-              }}
-            >
-              <Sparkles size={15} /> Gerar imagem do ranking com IA
-            </button>
-          )}
-
-          <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5 flex items-center gap-1.5 mt-6">
-            <MapPin size={14} color={journey.theme_a} /> Histórico
-          </div>
-          <div className="bg-surface rounded-2xl p-1.5">
-            {runs.slice(0, 10).map((r, i) => {
-              const member = localMembers.find((m) => m.id === r.user_id)!;
-              return (
-                <div key={r.id} className="flex items-center gap-3 px-2.5 py-2.5" style={{ borderBottom: i < runs.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
-                  <Avatar profile={member} size={28} />
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold">{member.name}</div>
-                    <div className="text-[11px] text-muted">
-                      {fmtPace(r.time_sec, Number(r.km))} /km · {fmtTime(r.time_sec)} min
-                      {r.bpm ? ` · ${r.bpm} bpm` : ""}
-                      {r.calories ? ` · ${r.calories} kcal` : ""}
-                    </div>
-                  </div>
-                  <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>
-                </div>
-              );
-            })}
-          </div>
+        <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5 flex items-center gap-1.5 mt-6">
+          <MapPin size={14} color={journey.theme_a} /> Histórico
         </div>
-      )}
-
-      {tab === "perfil" && me && (
-        <div className="px-5">
-          <div className="flex items-center gap-3.5 my-5">
-            <ProfileAvatarUpload profile={me} onUpdated={handleAvatarUpdated} />
-            <div>
-              <div className="text-lg font-extrabold">{me.name}</div>
-              <div className="text-xs text-muted font-semibold">{myRank}º lugar na jornada</div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5 mb-6">
-            <StatCard label="Total" value={`${me.km.toFixed(1)} km`} />
-            <StatCard label="Pace médio" value={`${fmtPace(me.timeSec, me.km)} /km`} />
-            <StatCard label="Corridas" value={String(me.runsCount)} />
-            <StatCard label="Tempo total" value={`${fmtTime(me.timeSec)} min`} />
-          </div>
-
-          <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5">Suas corridas</div>
-          <div className="bg-surface rounded-2xl p-1.5 mb-6">
-            {myRuns.length === 0 && <div className="p-4 text-sm text-muted">Você ainda não registrou nenhuma corrida.</div>}
-            {myRuns.map((r, i) => (
-              <div key={r.id} className="flex items-center gap-3 px-2.5 py-2.5" style={{ borderBottom: i < myRuns.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+        <div className="bg-surface rounded-2xl p-1.5">
+          {runs.slice(0, 10).map((r, i) => {
+            const member = members.find((m) => m.id === r.user_id)!;
+            return (
+              <div key={r.id} className="flex items-center gap-3 px-2.5 py-2.5" style={{ borderBottom: i < runs.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+                <Avatar profile={member} size={28} />
                 <div className="flex-1">
-                  <div className="text-sm font-bold">{fmtPace(r.time_sec, Number(r.km))} /km · {fmtTime(r.time_sec)} min</div>
+                  <div className="text-sm font-semibold">{member.name}</div>
+                  <div className="text-[11px] text-muted">
+                    {fmtPace(r.time_sec, Number(r.km))} /km · {fmtTime(r.time_sec)} min
+                    {r.bpm ? ` · ${r.bpm} bpm` : ""}
+                    {r.calories ? ` · ${r.calories} kcal` : ""}
+                  </div>
                 </div>
                 <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>
               </div>
-            ))}
-          </div>
+            );
+          })}
+        </div>
 
-          <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5">Notificações</div>
-          <div className="bg-surface rounded-2xl p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                {pushOn ? <Bell size={16} color={journey.theme_a} /> : <BellOff size={16} className="text-muted" />}
-                <div>
-                  <div className="text-sm font-bold">Avisar quando alguém registrar</div>
-                  <div className="text-[11px] text-muted">Recebe o comentário do narrador no celular</div>
-                </div>
-              </div>
-              <button
-                onClick={togglePush}
-                disabled={pushBusy}
-                className="px-3.5 py-2 rounded-full text-xs font-bold shrink-0"
-                style={{
-                  background: pushOn ? "rgba(255,255,255,0.08)" : `${journey.theme_a}33`,
-                  color: pushOn ? "#8890B5" : journey.theme_a,
-                }}
-              >
-                {pushBusy ? "..." : pushOn ? "Desativar" : "Ativar"}
-              </button>
+        {me && (
+          <>
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5 mt-6">
+              Sua contribuição
             </div>
-            {pushMsg && <div className="text-[11px] text-red-400 font-semibold mt-2">{pushMsg}</div>}
-            {!isPushSupported() && (
-              <div className="text-[11px] text-muted mt-2">
-                No iPhone, adiciona o Prompt & Pace à Tela de Início (Compartilhar → Adicionar à Tela de Início) pra notificações funcionarem.
+            <div className="grid grid-cols-2 gap-2.5 mb-4">
+              <StatCard label="Total" value={`${me.km.toFixed(1)} km`} />
+              <StatCard label="Pace médio" value={`${fmtPace(me.timeSec, me.km)} /km`} />
+              <StatCard label="Corridas" value={String(me.runsCount)} />
+              <StatCard label="Tempo total" value={`${fmtTime(me.timeSec)} min`} />
+            </div>
+            {myRuns.length > 0 && (
+              <div className="bg-surface rounded-2xl p-1.5">
+                {myRuns.slice(0, 5).map((r, i) => (
+                  <div key={r.id} className="flex items-center gap-3 px-2.5 py-2.5" style={{ borderBottom: i < Math.min(myRuns.length, 5) - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+                    <div className="flex-1">
+                      <div className="text-sm font-bold">{fmtPace(r.time_sec, Number(r.km))} /km · {fmtTime(r.time_sec)} min</div>
+                    </div>
+                    <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>
+                  </div>
+                ))}
               </div>
             )}
-          </div>
-
-          <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5 mt-6">
-            Sincronizar corridas
-          </div>
-          <Suspense fallback={null}>
-            <WearablesCard journeyId={journey.id} themeA={journey.theme_a} onSynced={refreshRuns} />
-          </Suspense>
-        </div>
-      )}
+          </>
+        )}
+      </div>
 
       <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto">
         <button
@@ -380,6 +280,7 @@ export default function JourneyClient({
         <PosterModal
           journey={journey}
           memberTotals={memberTotals.filter((m) => m.km > 0)}
+          narratorComment={aiComment}
           onClose={() => setPosterOpen(false)}
         />
       )}

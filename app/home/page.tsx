@@ -7,6 +7,8 @@ export default async function HomePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user!.id).single();
+
   const { data: memberships } = await supabase
     .from("journey_members")
     .select("journey_id, journeys(*)")
@@ -35,5 +37,5 @@ export default async function HomePage() {
     })
   );
 
-  return <HomeClient userId={user!.id} journeys={journeysWithStats} />;
+  return <HomeClient userId={user!.id} profile={profile} journeys={journeysWithStats} />;
 }

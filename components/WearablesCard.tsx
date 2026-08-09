@@ -50,7 +50,7 @@ export default function WearablesCard({
       } else if (stravaParam === "error") {
         setMsg("Não consegui conectar com o Strava. Tenta de novo.");
       }
-      router.replace(`/journey/${journeyId}`);
+      router.replace("/profile");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

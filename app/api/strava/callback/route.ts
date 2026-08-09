@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.redirect(new URL("/login", request.url));
 
   if (error || !code) {
-    return NextResponse.redirect(new URL(`/journey/${journeyId}?strava=denied`, request.url));
+    return NextResponse.redirect(new URL(`/profile?strava=denied`, request.url));
   }
 
   try {
@@ -42,9 +42,9 @@ export async function GET(request: Request) {
 
     if (dbError) throw dbError;
 
-    return NextResponse.redirect(new URL(`/journey/${journeyId}?strava=connected`, request.url));
+    return NextResponse.redirect(new URL(`/profile?strava=connected`, request.url));
   } catch (e) {
     console.error("Erro no callback do Strava:", e);
-    return NextResponse.redirect(new URL(`/journey/${journeyId}?strava=error`, request.url));
+    return NextResponse.redirect(new URL(`/profile?strava=error`, request.url));
   }
 }

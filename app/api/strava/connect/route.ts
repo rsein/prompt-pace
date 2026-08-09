@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   }
 
   if (!process.env.STRAVA_CLIENT_ID || !process.env.NEXT_PUBLIC_APP_URL) {
-    return NextResponse.redirect(new URL(`/journey/${journeyId}?strava=not_configured`, request.url));
+    return NextResponse.redirect(new URL(`/profile?strava=not_configured`, request.url));
   }
 
   return NextResponse.redirect(stravaAuthorizeUrl(journeyId));

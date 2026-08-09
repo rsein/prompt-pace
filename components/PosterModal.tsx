@@ -18,10 +18,12 @@ const SLOGAN = "Prompt rápido. Pace nem tanto.";
 export default function PosterModal({
   journey,
   memberTotals,
+  narratorComment,
   onClose,
 }: {
   journey: Journey;
   memberTotals: MemberTotal[];
+  narratorComment?: string;
   onClose: () => void;
 }) {
   const [loading, setLoading] = useState(false);
@@ -179,6 +181,7 @@ export default function PosterModal({
           journeyId: journey.id,
           themeA: journey.theme_a,
           themeB: journey.theme_b,
+          narratorComment: narratorComment || "",
           ranking: memberTotals.slice(0, 3).map((m) => ({
             id: m.id,
             name: m.name,

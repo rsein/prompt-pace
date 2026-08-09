@@ -7,7 +7,8 @@ import { Plus, Play } from "lucide-react";
 import JourneyFormModal from "./JourneyFormModal";
 import JourneyCardMenu from "./JourneyCardMenu";
 import RegisterRunModal from "./RegisterRunModal";
-import type { Journey } from "@/lib/types";
+import Avatar from "./Avatar";
+import type { Journey, Profile } from "@/lib/types";
 
 type JourneyWithStats = Journey & {
   monthlyKm: number;
@@ -17,9 +18,11 @@ type JourneyWithStats = Journey & {
 
 export default function HomeClient({
   userId,
+  profile,
   journeys,
 }: {
   userId: string;
+  profile: Profile | null;
   journeys: JourneyWithStats[];
 }) {
   const router = useRouter();
@@ -50,9 +53,20 @@ export default function HomeClient({
 
   return (
     <div className="px-6 py-8 max-w-md mx-auto pb-28">
+      <div className="flex items-center gap-2.5 mb-6">
+        {profile && (
+          <Link href="/profile" className="shrink-0">
+            <Avatar profile={profile} size={38} />
+          </Link>
+        )}
+        <div className="font-display text-xl tracking-wide">PROMPT & PACE</div>
+      </div>
+
       <div className="flex items-start justify-between mb-6">
         <div>
-          <div className="text-xs uppercase tracking-widest text-muted font-bold">Bem-vindo de volta</div>
+          <div className="text-xs uppercase tracking-widest text-muted font-bold">
+            Bem-vindo de volta{profile?.name ? `, ${profile.name}` : ""}
+          </div>
           <div className="font-display text-4xl mt-1">Suas jornadas</div>
         </div>
         <button

@@ -2,31 +2,65 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Cenários variam a cada geração pra nunca sair a mesma imagem duas vezes.
-const SCENES = [
-  "uma pista de corrida de desenho animado, num parque ensolarado, com faixas coloridas e confete no ar",
-  "uma corrida de rua estilo quadrinho de super-herói, prédios ao fundo, poeira saindo dos pés de quem lidera",
-  "uma pista de atletismo de olimpíada bem exagerada, arquibancada lotada torcendo",
-  "uma trilha de montanha íngreme, clima de corrida de aventura, pôr do sol dramático ao fundo",
-  "um circuito de corrida noturno com luzes neon, clima de videogame arcade",
-  "uma maratona de cidade grande, faixa de chegada estourando confete, helicóptero de TV ao fundo",
-  "uma pista de corrida futurista, tipo desenho animado de robôs, fumaça saindo dos tênis",
-  "uma praia ao entardecer, corrida na areia com o mar ao fundo, gaivotas voando assustadas",
+// Cenários de reserva, usados só se não houver comentário do narrador pra se basear (ou se a IA de texto falhar)
+const FALLBACK_SCENES = [
+  "avenida de cidade grande ao amanhecer, prédios desfocados ao fundo, luz dourada de nascer do sol, poeira no ar",
+  "hipódromo ou pista de corrida iluminada à noite, arquibancada lotada torcendo, poeira levantando do chão",
+  "arraiá de festa junina brasileira à noite, fogueira acesa, bandeirinhas coloridas, barraquinhas, clima caótico e engraçado",
+  "arena de estádio lotada, holofotes fortes, confete caindo, telão gigante ao fundo",
+  "trilha de montanha ao entardecer, poeira e pedrinhas voando dos pés, céu alaranjado dramático",
+  "pista de atletismo profissional à noite, refletores potentes, fumaça de fundo, clima de final olímpica",
 ];
 
 const POSITION_LABELS = [
   "1º lugar, disparado bem na frente de todo mundo",
   "2º lugar, logo atrás, colado tentando alcançar o primeiro",
-  "3º lugar, mais atrás, visivelmente cansado",
+  "3º lugar, mais atrás, visivelmente exausto",
 ];
 
 const POSITION_MOODS = [
-  "cara super alegre, sorrindo largo, sensação de vitória, braços meio erguidos comemorando, correndo em disparada",
-  "expressão de esforço cômica, quase caindo de tanto tentar alcançar quem está na frente, cara de determinação exagerada",
-  "expressão de cansaço bem-humorada, mão apoiada no joelho, quase andando de tão exausto, suando muito mas sorrindo de boa vontade",
+  "expressão real de vitória, sorrindo, comemorando com o punho erguido, correndo em disparada",
+  "expressão real de esforço máximo, cara tensa e determinada, quase alcançando quem está na frente",
+  "expressão real de exaustão, suando, boca aberta ofegante, quase andando de tão cansado",
 ];
 
 type RankingMember = { id: string; name: string; avatar_url: string | null; color: string; km: number };
+
+// Transforma o comentário do narrador numa descrição de CENÁRIO visual (ambiente/clima/ação de fundo) —
+// o texto do narrador vira inspiração pro prompt de imagem, nunca palavras escritas na foto.
+async function generateSceneFromNarrator(narratorComment: string): Promise<string | null> {
+  if (!narratorComment || !process.env.OPENAI_API_KEY) return null;
+
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        max_tokens: 120,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Você descreve cenários visuais pra gerar imagens de pôster de filme de ação/aventura fotorrealista, a partir do comentário de um narrador esportivo brincalhão sobre uma corrida de rua entre amigos. Escreva em português, 2 a 3 frases, só descrevendo ambiente, iluminação e ação de fundo (nunca pessoas específicas, nunca diálogo, nunca palavras que devem aparecer escritas na cena). Capture o clima/humor do comentário — se for vitorioso, faça algo triunfante; se for sofrido ou engraçado, reflita isso no cenário.",
+          },
+          {
+            role: "user",
+            content: `Comentário do narrador: "${narratorComment}"`,
+          },
+        ],
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content?.trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: Request) {
   const supabase = createClient();
@@ -35,13 +69,14 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
-  let journeyId: string, ranking: RankingMember[], themeA: string, themeB: string;
+  let journeyId: string, ranking: RankingMember[], themeA: string, themeB: string, narratorComment: string;
   try {
     const body = await request.json();
     journeyId = body.journeyId;
     ranking = body.ranking;
     themeA = body.themeA || "#29F1D6";
     themeB = body.themeB || "#8B5CF6";
+    narratorComment = body.narratorComment || "";
   } catch {
     return NextResponse.json({ error: "Requisição inválida" }, { status: 400 });
   }
@@ -51,10 +86,9 @@ export async function POST(request: Request) {
   }
 
   const top = ranking.slice(0, 3);
-  const scene = SCENES[Math.floor(Math.random() * SCENES.length)];
+  const scene = (await generateSceneFromNarrator(narratorComment)) ?? FALLBACK_SCENES[Math.floor(Math.random() * FALLBACK_SCENES.length)];
 
-  // Baixa as fotos de perfil disponíveis pra usar como referência visual na geração (em paralelo, pra ganhar tempo)
-  const referenceImages: { name: string; blob: Blob }[] = [];
+  // Baixa as fotos de perfil disponíveis pra usar como referência visual, em paralelo
   const withPhoto = top.filter((m) => m.avatar_url);
   const fetched = await Promise.all(
     withPhoto.map(async (m) => {
@@ -66,32 +100,26 @@ export async function POST(request: Request) {
       }
     })
   );
-  fetched.forEach((r) => {
-    if (r) referenceImages.push(r);
-  });
+  const referenceImages = fetched.filter((r): r is { name: string; blob: Blob } => r !== null);
 
   const peopleDescription = top
     .map((m, i) => {
       const hasPhoto = referenceImages.some((r) => r.name === m.name);
-      const base = `${POSITION_LABELS[i]}: personagem chamado "${m.name}", ${POSITION_MOODS[i]}`;
+      const base = `${POSITION_LABELS[i]}: pessoa chamada "${m.name}", ${POSITION_MOODS[i]}`;
       return hasPhoto
-        ? `${base}. Baseie o rosto desse personagem na foto de referência enviada dessa mesma pessoa, mas em estilo ilustrado/cartoon — mantenha os traços reconhecíveis, não copie a foto literalmente.`
-        : `${base}. Essa pessoa não enviou foto de perfil — desenhe um corredor(a) ilustrado genérico, roupa na cor ${m.color}, com um número de peito mostrando as iniciais "${m.name.slice(0, 2).toUpperCase()}".`;
+        ? `${base}. Baseie o rosto REALISTICAMENTE na foto de referência dessa mesma pessoa — mantenha a semelhança física real (rosto, cabelo, barba), sem estilizar como desenho, como se fosse uma foto composta de verdade.`
+        : `${base}. Essa pessoa não enviou foto — represente como um(a) corredor(a) realista genérico, roupa na cor ${m.color}.`;
     })
     .join("\n");
 
-  const prompt = `Crie um pôster ilustrado, estilo cartoon divertido e vibrante, tipo capa de revista esportiva de humor, retratando uma disputa de corrida entre amigos.
+  const prompt = `Crie uma cena FOTORREALISTA de pessoas correndo, estilo still de filme de ação/aventura hollywoodiano — mas com um tom cômico e caloroso por baixo do drama exagerado. Iluminação cinematográfica intensa, cores saturadas, alto contraste, textura de foto real (não ilustração, não desenho, não cartoon).
 
-Cenário: ${scene}.
+Cenário: ${scene}
 
-Personagens (da esquerda pra direita: 2º lugar mais atrás à esquerda, 1º lugar na frente ao centro, 3º lugar mais atrás à direita, como um pódio em movimento):
+Personagens correndo (da esquerda pra direita: 2º lugar mais atrás à esquerda, 1º lugar na frente ao centro, 3º lugar mais atrás à direita):
 ${peopleDescription}
 
-Composição: deixe uma margem mais limpa e com menos detalhes essenciais perto do topo e da base da imagem (cerca de 15% da altura em cada ponta) — depois vamos sobrepor uma faixa com o nome do app e um placar ali, então evite desenhar rostos ou elementos importantes da cena colados nessas bordas.
-
-Estilo: ilustração colorida, traços expressivos e exagerados tipo animação, bem-humorado e caloroso (nunca zombeteiro ou constrangedor), formato pôster vertical, cores vibrantes com tons próximos de ${themeA} e ${themeB} no fundo.
-
-Importante: NÃO desenhe nenhum tipo de texto, letra, número, logotipo, marca, nome de app, faixa de largada/chegada com escrita, placas, painéis, camisetas estampadas ou números de peito com dígitos — a cena deve ser 100% ilustração, sem nenhum caractere escrito em lugar nenhum, mesmo que pareça fazer sentido pro cenário (ex: arco de chegada deve ser liso, sem faixa escrita).`;
+Importante: NÃO escreva nenhuma palavra, letra, número, logotipo, faixa com texto, placa ou painel em lugar nenhum da imagem — a cena é 100% fotográfica, sem nenhum caractere escrito. Deixe uma margem mais limpa e com menos detalhes essenciais perto do topo e da base da composição (cerca de 15% da altura em cada ponta), pra funcionar bem quando a gente sobrepuser uma faixa depois. Formato pôster vertical.`;
 
   try {
     let imageB64: string | null = null;
