@@ -28,7 +28,7 @@ cp .env.local.example .env.local
 npm install
 ```
 
-Preencha com os valores do seu projeto Supabase (`Project Settings > API`, incluindo a `service_role`) e sua chave da Anthropic (`console.anthropic.com > API Keys`).
+Preencha com os valores do seu projeto Supabase (`Project Settings > API`, incluindo a `service_role`) e sua chave da OpenAI (`platform.openai.com > API Keys` — usada tanto pro narrador quanto pra leitura de foto). A chave da Anthropic no arquivo de exemplo não é mais usada por nenhuma rota; pode deixar em branco.
 
 Pra notificações push, depois do `npm install`, gera as chaves rodando:
 
