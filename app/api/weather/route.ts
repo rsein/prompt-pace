@@ -34,22 +34,39 @@ const WEATHER_CODES: Record<number, string> = {
 
 const BAD_FOR_RUNNING = new Set([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 71, 73, 75, 77, 80, 81, 82, 85, 86, 95, 96, 99]);
 
-function motivationalPhrase(isGood: boolean, tempC: number, description: string): string {
-  if (isGood && tempC >= 12 && tempC <= 28) {
-    const options = [
-      `Hoje está ótimo pra correr, ${description} — sua jornada não anda sozinha 👟`,
-      `Dia perfeito lá fora, ${description}. Bora garantir uns quilômetros antes que o dia acabe?`,
-      `Sem desculpa hoje: ${description} e clima ideal pra rua.`,
-    ];
-    return options[Math.floor(Math.random() * options.length)];
+async function generatePhrase(isGood: boolean, tempC: number, description: string): Promise<string | null> {
+  if (!process.env.OPENAI_API_KEY) return null;
+
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        max_tokens: 40,
+        temperature: 1,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Você escreve UMA frase curta (no máximo 15 palavras) em português do Brasil, incentivando a pessoa a sair pra correr hoje, com bom humor e leveza (nunca cobrança pesada ou culpa). Baseie-se no clima informado. Varie o tom e as palavras a cada vez — nunca repita a mesma estrutura. Responda só a frase, sem aspas.",
+          },
+          {
+            role: "user",
+            content: `Clima agora: ${description}, ${Math.round(tempC)}°C. ${isGood ? "Está bom pra correr." : "Não está tão bom pra correr hoje."}`,
+          },
+        ],
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content?.trim().replace(/^["']|["']$/g, "") || null;
+  } catch {
+    return null;
   }
-  if (!isGood) {
-    return `Tá ${description} por aí — se a rua não rolar, bora de esteira pra não ficar pra trás na jornada.`;
-  }
-  if (tempC > 28) {
-    return `Tá quente (${Math.round(tempC)}°C) — hidrata bem e considera correr mais cedo ou mais tarde hoje.`;
-  }
-  return `Tá friozinho (${Math.round(tempC)}°C) lá fora — bom pra correr sem esquentar demais.`;
 }
 
 export async function GET(request: Request) {
@@ -79,13 +96,18 @@ export async function GET(request: Request) {
     const description = WEATHER_CODES[code] ?? "tempo estável";
     const isGoodForRunning = !BAD_FOR_RUNNING.has(code) && tempC !== null && tempC >= 5 && tempC <= 33;
     const city = geoData?.city || geoData?.locality || geoData?.principalSubdivision || null;
+    const phrase =
+      tempC !== null
+        ? (await generatePhrase(isGoodForRunning, tempC, description)) ??
+          (isGoodForRunning ? "Bom dia pra correr, bora?" : "Clima mais difícil hoje — se cuida na rua.")
+        : null;
 
     return NextResponse.json({
       city,
       tempC,
       description,
       isGoodForRunning,
-      phrase: tempC !== null ? motivationalPhrase(isGoodForRunning, tempC, description) : null,
+      phrase,
     });
   } catch (e) {
     console.error("Erro ao buscar clima:", e);
