@@ -8,7 +8,7 @@ import JourneyFormModal from "./JourneyFormModal";
 import JourneyCardMenu from "./JourneyCardMenu";
 import RegisterRunModal from "./RegisterRunModal";
 import Avatar from "./Avatar";
-import { periodProgress } from "@/lib/utils";
+import { periodProgress, fmtPace } from "@/lib/utils";
 import type { Journey, Profile } from "@/lib/types";
 
 type WeatherInfo = {
@@ -25,14 +25,23 @@ type JourneyWithStats = Journey & {
   lastActivity: string;
 };
 
+type MyStats = {
+  monthlyKm: number;
+  annualKm: number;
+  bestPaceSec: number | null;
+  avgPaceSec: number | null;
+};
+
 export default function HomeClient({
   userId,
   profile,
   journeys,
+  myStats,
 }: {
   userId: string;
   profile: Profile | null;
   journeys: JourneyWithStats[];
+  myStats: MyStats;
 }) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
@@ -109,10 +118,19 @@ export default function HomeClient({
       )}
 
       {profile && (
-        <Link href="/profile" className="flex items-center gap-2.5 mb-6 w-fit">
+        <Link href="/profile" className="flex items-center gap-2.5 mb-4 w-fit">
           <Avatar profile={profile} size={34} />
           <span className="text-sm font-bold">{profile.name}</span>
         </Link>
+      )}
+
+      {(myStats.monthlyKm > 0 || myStats.annualKm > 0) && (
+        <div className="grid grid-cols-2 gap-2.5 mb-6">
+          <MiniStat label="Este mês" value={`${myStats.monthlyKm.toFixed(1)} km`} />
+          <MiniStat label="Este ano" value={`${myStats.annualKm.toFixed(1)} km`} />
+          <MiniStat label="Melhor pace" value={myStats.bestPaceSec ? `${fmtPace(myStats.bestPaceSec, 1)} /km` : "—"} />
+          <MiniStat label="Pace médio" value={myStats.avgPaceSec ? `${fmtPace(myStats.avgPaceSec, 1)} /km` : "—"} />
+        </div>
       )}
 
       <div className="flex items-start justify-between mb-6">
@@ -237,6 +255,15 @@ export default function HomeClient({
           onRegistered={refresh}
         />
       )}
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-surface rounded-xl px-3.5 py-3">
+      <div className="text-[10px] text-muted font-bold uppercase tracking-wide mb-1">{label}</div>
+      <div className="text-base font-extrabold">{value}</div>
     </div>
   );
 }

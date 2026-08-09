@@ -37,5 +37,36 @@ export default async function HomePage() {
     })
   );
 
-  return <HomeClient userId={user!.id} profile={profile} journeys={journeysWithStats} />;
+  const { data: myRuns } = await supabase
+    .from("runs")
+    .select("km, time_sec, created_at")
+    .eq("user_id", user!.id);
+
+  const now = new Date();
+  const runsList = (myRuns ?? []) as { km: number; time_sec: number; created_at: string }[];
+
+  const myMonthlyKm = runsList
+    .filter((r) => {
+      const d = new Date(r.created_at);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    })
+    .reduce((s, r) => s + Number(r.km), 0);
+
+  const myAnnualKm = runsList
+    .filter((r) => new Date(r.created_at).getFullYear() === now.getFullYear())
+    .reduce((s, r) => s + Number(r.km), 0);
+
+  const totalKm = runsList.reduce((s, r) => s + Number(r.km), 0);
+  const totalSec = runsList.reduce((s, r) => s + r.time_sec, 0);
+  const avgPaceSec = totalKm > 0 ? totalSec / totalKm : null;
+
+  const bestPaceSec = runsList.reduce<number | null>((best, r) => {
+    if (!r.km || r.km <= 0) return best;
+    const pace = r.time_sec / Number(r.km);
+    return best === null || pace < best ? pace : best;
+  }, null);
+
+  const myStats = { monthlyKm: myMonthlyKm, annualKm: myAnnualKm, bestPaceSec, avgPaceSec };
+
+  return <HomeClient userId={user!.id} profile={profile} journeys={journeysWithStats} myStats={myStats} />;
 }
