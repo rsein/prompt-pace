@@ -4,12 +4,18 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Prompt & Pace",
   description: "O universo de corrida do seu grupo",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Prompt & Pace",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  themeColor: "#05070F",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
