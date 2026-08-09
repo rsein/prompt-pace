@@ -82,6 +82,8 @@ Cenário: ${scene}.
 Personagens (da esquerda pra direita: 2º lugar mais atrás à esquerda, 1º lugar na frente ao centro, 3º lugar mais atrás à direita, como um pódio em movimento):
 ${peopleDescription}
 
+Composição: deixe uma margem mais limpa e com menos detalhes essenciais perto do topo e da base da imagem (cerca de 15% da altura em cada ponta) — depois vamos sobrepor uma faixa com o nome do app e um placar ali, então evite desenhar rostos ou elementos importantes da cena colados nessas bordas.
+
 Estilo: ilustração colorida, traços expressivos e exagerados tipo animação, bem-humorado e caloroso (nunca zombeteiro ou constrangedor), sem nenhum texto ou palavra escrita na imagem, formato pôster vertical, cores vibrantes com tons próximos de ${themeA} e ${themeB} no fundo.`;
 
   try {

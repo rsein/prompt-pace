@@ -9,8 +9,10 @@ const LOADING_MESSAGES = [
   "Desenhando a poeira da pista...",
   "Ajustando a cara de cansaço do pelotão...",
   "Pintando o cenário da corrida...",
-  "Dando os retoques finais no pôster...",
+  "Montando o placar do ranking...",
 ];
+
+const MEDAL_COLORS = ["#FFC145", "#C7CEDD", "#CD8A5A"];
 
 export default function PosterModal({
   journey,
@@ -23,15 +25,110 @@ export default function PosterModal({
 }) {
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [finalBlob, setFinalBlob] = useState<Blob | null>(null);
+  const [rawUrl, setRawUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [sharing, setSharing] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+
+  // Desenha a logo do app no topo e o placar do ranking no rodapé, por cima da ilustração gerada pela IA.
+  // Fazemos isso no Canvas em vez de pedir texto pra IA porque nomes/números ficam sempre legíveis assim.
+  async function composite(imageUrl: string): Promise<Blob> {
+    try {
+      await document.fonts.load('700 60px "Bebas Neue"');
+      await document.fonts.load('800 40px "Manrope"');
+    } catch {
+      // segue mesmo se a fonte não carregar a tempo — cai na fonte padrão do sistema
+    }
+
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new window.Image();
+      el.crossOrigin = "anonymous";
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("Falha ao carregar a imagem base"));
+      el.src = imageUrl;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas não suportado");
+    ctx.drawImage(img, 0, 0);
+
+    const w = canvas.width;
+
+    // Faixa do topo — logo do app
+    const topH = Math.round(w * 0.17);
+    const topGrad = ctx.createLinearGradient(0, 0, w, 0);
+    topGrad.addColorStop(0, `${journey.theme_a}EE`);
+    topGrad.addColorStop(1, `${journey.theme_b}EE`);
+    ctx.fillStyle = topGrad;
+    ctx.fillRect(0, 0, w, topH);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#05070F";
+    ctx.font = `700 ${Math.round(w * 0.078)}px "Bebas Neue", sans-serif`;
+    ctx.fillText("PROMPT & PACE", w / 2, topH * 0.62);
+    ctx.font = `700 ${Math.round(w * 0.03)}px "Manrope", sans-serif`;
+    ctx.fillText(journey.title.toUpperCase(), w / 2, topH * 0.9);
+
+    // Faixa do rodapé — placar do ranking atual
+    const rows = memberTotals.slice(0, 6);
+    const rowH = Math.round(w * 0.08);
+    const bottomPad = Math.round(w * 0.05);
+    const bottomH = rowH * rows.length + bottomPad * 1.6;
+    const bottomY = canvas.height - bottomH;
+
+    ctx.fillStyle = "rgba(5, 7, 15, 0.88)";
+    ctx.fillRect(0, bottomY, w, bottomH);
+
+    const pad = Math.round(w * 0.06);
+    rows.forEach((m, i) => {
+      const y = bottomY + bottomPad + i * rowH;
+      const badgeR = rowH * 0.32;
+      const badgeX = pad + badgeR;
+      const badgeY = y + rowH * 0.34;
+
+      ctx.beginPath();
+      ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
+      ctx.fillStyle = MEDAL_COLORS[i] ?? `${m.color}77`;
+      ctx.fill();
+
+      ctx.fillStyle = "#05070F";
+      ctx.textAlign = "center";
+      ctx.font = `800 ${Math.round(badgeR * 1.15)}px "Manrope", sans-serif`;
+      ctx.fillText(String(i + 1), badgeX, badgeY + badgeR * 0.36);
+
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#F4F6FF";
+      ctx.font = `800 ${Math.round(rowH * 0.32)}px "Manrope", sans-serif`;
+      ctx.fillText(m.name, pad + badgeR * 2 + Math.round(w * 0.03), badgeY + rowH * 0.1);
+
+      ctx.textAlign = "right";
+      ctx.fillStyle = journey.theme_a;
+      ctx.font = `800 ${Math.round(rowH * 0.32)}px "Manrope", sans-serif`;
+      ctx.fillText(`${m.km.toFixed(1)} km`, w - pad, badgeY + rowH * 0.1);
+    });
+
+    return new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Falha ao montar a imagem final"));
+      }, "image/png");
+    });
+  }
 
   async function generate() {
     setLoading(true);
     setError("");
-    setImageUrl(null);
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    setPreviewUrl(null);
+    setFinalBlob(null);
+    setRawUrl(null);
+
     let i = 0;
     intervalRef.current = setInterval(() => {
       i = (i + 1) % LOADING_MESSAGES.length;
@@ -58,8 +155,20 @@ export default function PosterModal({
       const data = await res.json();
       if (!res.ok || data.error) {
         setError(data.error || "Não consegui gerar a imagem agora.");
-      } else {
-        setImageUrl(data.url);
+        return;
+      }
+
+      setRawUrl(data.url);
+      try {
+        const blob = await composite(data.url);
+        const objUrl = URL.createObjectURL(blob);
+        objectUrlRef.current = objUrl;
+        setFinalBlob(blob);
+        setPreviewUrl(objUrl);
+      } catch (compErr) {
+        // se a composição falhar (ex: CORS), ainda mostra a imagem crua da IA
+        console.error("Não consegui sobrepor a logo/placar:", compErr);
+        setPreviewUrl(data.url);
       }
     } catch {
       setError("Não consegui gerar a imagem agora. Confere sua conexão e tenta de novo.");
@@ -73,17 +182,23 @@ export default function PosterModal({
     generate();
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleShare() {
-    if (!imageUrl) return;
+    if (!previewUrl) return;
     setSharing(true);
     try {
-      const res = await fetch(imageUrl);
-      const blob = await res.blob();
-      const file = new File([blob], `${journey.title}-ranking.png`, { type: "image/png" });
+      let file: File;
+      if (finalBlob) {
+        file = new File([finalBlob], `${journey.title}-ranking.png`, { type: "image/png" });
+      } else {
+        const res = await fetch(rawUrl ?? previewUrl);
+        const blob = await res.blob();
+        file = new File([blob], `${journey.title}-ranking.png`, { type: "image/png" });
+      }
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
@@ -92,9 +207,9 @@ export default function PosterModal({
           text: `Como tá o ranking da jornada "${journey.title}" 👀🏃`,
         });
       } else if (navigator.share) {
-        await navigator.share({ title: journey.title, url: imageUrl });
+        await navigator.share({ title: journey.title, text: "Confere o ranking da nossa jornada de corrida!" });
       } else {
-        window.open(imageUrl, "_blank");
+        window.open(previewUrl, "_blank");
       }
     } catch {
       // usuário cancelou o share ou o navegador bloqueou — sem problema, sem toast de erro
@@ -138,10 +253,10 @@ export default function PosterModal({
           </div>
         )}
 
-        {!loading && imageUrl && (
+        {!loading && !error && previewUrl && (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imageUrl} alt={`Ranking de ${journey.title}`} className="w-full rounded-2xl mb-4" />
+            <img src={previewUrl} alt={`Ranking de ${journey.title}`} className="w-full rounded-2xl mb-4" />
 
             <div className="flex gap-2 mb-2.5">
               <button
@@ -153,7 +268,7 @@ export default function PosterModal({
                 <Share2 size={16} /> Compartilhar
               </button>
               <a
-                href={imageUrl}
+                href={previewUrl}
                 download={`${journey.title}-ranking.png`}
                 className="w-14 flex items-center justify-center rounded-2xl"
                 style={{ border: "1px solid rgba(255,255,255,0.12)" }}
