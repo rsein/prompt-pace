@@ -1,14 +1,23 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Play } from "lucide-react";
+import { Plus, Play, MapPin, Sun, CloudRain } from "lucide-react";
 import JourneyFormModal from "./JourneyFormModal";
 import JourneyCardMenu from "./JourneyCardMenu";
 import RegisterRunModal from "./RegisterRunModal";
 import Avatar from "./Avatar";
+import { periodProgress } from "@/lib/utils";
 import type { Journey, Profile } from "@/lib/types";
+
+type WeatherInfo = {
+  city: string | null;
+  tempC: number | null;
+  description: string;
+  isGoodForRunning: boolean;
+  phrase: string | null;
+};
 
 type JourneyWithStats = Journey & {
   monthlyKm: number;
@@ -30,6 +39,28 @@ export default function HomeClient({
   const [editingJourney, setEditingJourney] = useState<Journey | null>(null);
   const [registerJourneyId, setRegisterJourneyId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [weather, setWeather] = useState<WeatherInfo | null>(null);
+
+  const todayLabel = useMemo(
+    () => new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "short" }).replace(".", ""),
+    []
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch(`/api/weather?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
+          if (res.ok) setWeather(await res.json());
+        } catch {
+          // sem clima, sem problema — a tela funciona igual sem essa informação
+        }
+      },
+      () => {}, // usuário negou localização — segue sem mostrar nada, sem incomodar
+      { timeout: 8000 }
+    );
+  }, []);
 
   const sorted = useMemo(
     () => [...journeys].sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime()),
@@ -53,7 +84,29 @@ export default function HomeClient({
 
   return (
     <div className="px-6 py-8 max-w-md mx-auto pb-28">
-      <div className="font-display text-xl tracking-wide mb-3">PROMPT & PACE</div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="font-display text-xl tracking-wide">PROMPT & PACE</div>
+        <div className="text-[11px] text-muted font-bold capitalize">{todayLabel}</div>
+      </div>
+
+      {weather && weather.tempC !== null && (
+        <div className="mb-4">
+          <div className="flex items-center gap-1.5 text-[11px] text-muted font-semibold">
+            {weather.isGoodForRunning ? (
+              <Sun size={12} className="text-[#FFC145]" />
+            ) : (
+              <CloudRain size={12} className="text-[#7DA6FF]" />
+            )}
+            {weather.city && (
+              <>
+                <MapPin size={11} /> {weather.city} ·
+              </>
+            )}
+            <span>{Math.round(weather.tempC)}°C · {weather.description}</span>
+          </div>
+          {weather.phrase && <div className="text-[11px] text-muted italic mt-1 leading-snug">{weather.phrase}</div>}
+        </div>
+      )}
 
       {profile && (
         <Link href="/profile" className="flex items-center gap-2.5 mb-6 w-fit">
@@ -87,6 +140,7 @@ export default function HomeClient({
           : Math.min(100, Math.round((j.annualKm / (j.annual_goal_km || 1)) * 100));
         const km = j.period_monthly ? j.monthlyKm : j.annualKm;
         const goal = j.period_monthly ? j.monthly_goal_km : j.annual_goal_km;
+        const daysLeft = periodProgress(j.period_monthly ? "monthly" : "annual").daysLeft;
 
         return (
           <Link
@@ -105,7 +159,10 @@ export default function HomeClient({
                 </div>
                 <div className="font-display text-2xl mt-0.5">{j.title}</div>
               </div>
-              <JourneyCardMenu journey={j} onEdit={() => setEditingJourney(j)} onDeleted={refresh} />
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[10px] text-muted font-bold whitespace-nowrap">{daysLeft}d restantes</span>
+                <JourneyCardMenu journey={j} onEdit={() => setEditingJourney(j)} onDeleted={refresh} />
+              </div>
             </div>
 
             <div className="mt-4">

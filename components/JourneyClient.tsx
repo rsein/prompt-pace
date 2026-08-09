@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Plus, Sparkles, MapPin, Share2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { fmtPace, fmtTime, isThisMonth, isThisYear, currentMonthLabel, currentYearLabel } from "@/lib/utils";
+import { fmtPace, fmtTime, isThisMonth, isThisYear, currentMonthLabel, currentYearLabel, periodProgress } from "@/lib/utils";
 import Avatar from "./Avatar";
 import Podium from "./Podium";
 import RegisterRunModal from "./RegisterRunModal";
@@ -44,6 +44,7 @@ export default function JourneyClient({
 
   const totalKm = useMemo(() => periodRuns.reduce((s, r) => s + Number(r.km), 0), [periodRuns]);
   const pct = goalKm ? Math.min(100, Math.round((totalKm / goalKm) * 100)) : 0;
+  const timeProgress = useMemo(() => periodProgress(periodView), [periodView]);
 
   const memberTotals = useMemo(() => {
     return members
@@ -83,16 +84,6 @@ export default function JourneyClient({
     }).catch(() => {});
   }
 
-  function daysLeftInPeriod() {
-    const now = new Date();
-    if (periodView === "monthly") {
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000));
-    }
-    const end = new Date(now.getFullYear(), 11, 31);
-    return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000));
-  }
-
   async function generateComment(currentRuns: Run[]) {
     setAiLoading(true);
     const relevant = currentRuns.filter((r) =>
@@ -115,7 +106,7 @@ export default function JourneyClient({
           standings,
           goalKm: goalKm || "sem meta",
           totalKm: total.toFixed(1),
-          daysLeft: daysLeftInPeriod(),
+          daysLeft: timeProgress.daysLeft,
           previousComment: aiComment || undefined,
         }),
       });
@@ -203,7 +194,10 @@ export default function JourneyClient({
         )}
 
         <div className="mt-4">
-          <div className="text-[11px] text-muted font-bold mb-1 capitalize">{periodLabel}</div>
+          <div className="flex justify-between items-baseline mb-1">
+            <div className="text-[11px] text-muted font-bold capitalize">{periodLabel}</div>
+            <div className="text-[11px] text-muted font-bold">{timeProgress.daysLeft} dias restantes</div>
+          </div>
           <div className="flex justify-between text-sm font-extrabold mb-2">
             <span>{totalKm.toFixed(1)} km</span>
             <span className="text-muted">{pct}% de {goalKm} km</span>
@@ -214,6 +208,20 @@ export default function JourneyClient({
               style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${journey.theme_a}, ${journey.theme_b})` }}
             />
           </div>
+
+          {goalKm > 0 && (
+            <>
+              <div className="flex justify-between items-center mt-2.5 mb-1">
+                <span className="text-[10px] text-muted font-semibold uppercase tracking-wide">Tempo do período</span>
+                <span className="text-[10px] font-bold" style={{ color: pct >= timeProgress.pct ? "#5CFF8F" : "#FF6B9D" }}>
+                  {pct >= timeProgress.pct ? "Você está à frente do calendário" : "Você está atrás do calendário"}
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full rounded-full bg-white/30" style={{ width: `${timeProgress.pct}%` }} />
+              </div>
+            </>
+          )}
         </div>
       </div>
 

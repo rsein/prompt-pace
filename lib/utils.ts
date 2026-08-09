@@ -1,3 +1,23 @@
+export function periodProgress(periodType: "monthly" | "annual") {
+  const now = new Date();
+  if (periodType === "monthly") {
+    const totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const elapsedDays = now.getDate();
+    return {
+      pct: Math.min(100, Math.round((elapsedDays / totalDays) * 100)),
+      daysLeft: Math.max(0, totalDays - elapsedDays),
+    };
+  }
+  const start = new Date(now.getFullYear(), 0, 1);
+  const end = new Date(now.getFullYear(), 11, 31);
+  const totalDays = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+  const elapsedDays = Math.round((now.getTime() - start.getTime()) / 86400000) + 1;
+  return {
+    pct: Math.min(100, Math.round((elapsedDays / totalDays) * 100)),
+    daysLeft: Math.max(0, totalDays - elapsedDays),
+  };
+}
+
 export function initials(name: string) {
   return name.slice(0, 2).toUpperCase();
 }
