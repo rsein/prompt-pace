@@ -46,8 +46,7 @@ export default function HomeClient({
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
   const [editingJourney, setEditingJourney] = useState<Journey | null>(null);
-  const [registerJourneyId, setRegisterJourneyId] = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [registerOpen, setRegisterOpen] = useState(false);
   const [weather, setWeather] = useState<WeatherInfo | null>(null);
 
   const todayLabel = useMemo(
@@ -82,14 +81,10 @@ export default function HomeClient({
 
   function handleRegisterClick() {
     if (journeys.length === 0) return;
-    if (journeys.length === 1) {
-      setRegisterJourneyId(journeys[0].id);
-    } else {
-      setPickerOpen(true);
-    }
+    setRegisterOpen(true);
   }
 
-  const registerJourney = journeys.find((j) => j.id === registerJourneyId);
+  const defaultJourneyId = sorted[0]?.id;
 
   return (
     <div className="px-6 py-8 max-w-md mx-auto pb-28">
@@ -221,37 +216,12 @@ export default function HomeClient({
         />
       )}
 
-      {pickerOpen && (
-        <div className="fixed inset-0 bg-black/70 flex items-end z-40" onClick={() => setPickerOpen(false)}>
-          <div
-            className="w-full max-w-md mx-auto bg-surface2 rounded-t-3xl p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="font-display text-2xl mb-4">Registrar em qual jornada?</div>
-            {journeys.map((j) => (
-              <button
-                key={j.id}
-                onClick={() => {
-                  setPickerOpen(false);
-                  setRegisterJourneyId(j.id);
-                }}
-                className="w-full text-left px-4 py-3 rounded-xl mb-2 font-bold text-sm"
-                style={{ background: `${j.theme_a}22`, border: `1px solid ${j.theme_a}44` }}
-              >
-                {j.title}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {registerJourney && (
+      {registerOpen && (
         <RegisterRunModal
-          journeyId={registerJourney.id}
+          journeys={journeys}
+          defaultJourneyIds={defaultJourneyId ? [defaultJourneyId] : []}
           userId={userId}
-          themeA={registerJourney.theme_a}
-          themeB={registerJourney.theme_b}
-          onClose={() => setRegisterJourneyId(null)}
+          onClose={() => setRegisterOpen(false)}
           onRegistered={refresh}
         />
       )}

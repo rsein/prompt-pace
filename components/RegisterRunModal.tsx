@@ -1,32 +1,34 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { X, Camera, Sparkles, RefreshCw, Image as ImageIcon } from "lucide-react";
+import { X, Camera, Sparkles, RefreshCw, Image as ImageIcon, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { parseTimeInput, fmtPace, fmtTime, resizeImageFile } from "@/lib/utils";
 
+type JourneyOption = { id: string; title: string; theme_a: string; theme_b: string };
+
 export default function RegisterRunModal({
-  journeyId,
+  journeys,
+  defaultJourneyIds,
   userId,
-  themeA,
-  themeB,
   onClose,
   onRegistered,
 }: {
-  journeyId: string;
+  journeys: JourneyOption[];
+  defaultJourneyIds: string[];
   userId: string;
-  themeA: string;
-  themeB: string;
   onClose: () => void;
-  onRegistered: () => void;
+  onRegistered: (journeyIds: string[]) => void;
 }) {
   const supabase = createClient();
   const [mode, setMode] = useState<"manual" | "photo">("manual");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(defaultJourneyIds));
   const [km, setKm] = useState("");
   const [time, setTime] = useState("");
   const [bpm, setBpm] = useState("");
   const [calories, setCalories] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -35,6 +37,10 @@ export default function RegisterRunModal({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
+  const primaryJourney = journeys.find((j) => selectedIds.has(j.id)) ?? journeys[0];
+  const themeA = primaryJourney?.theme_a ?? "#29F1D6";
+  const themeB = primaryJourney?.theme_b ?? "#8B5CF6";
+
   const livePace = useMemo(() => {
     const kmValue = parseFloat(km.replace(",", "."));
     if (!kmValue || !time) return null;
@@ -42,6 +48,15 @@ export default function RegisterRunModal({
     if (!timeSec) return null;
     return fmtPace(timeSec, kmValue);
   }, [km, time]);
+
+  function toggleJourney(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -104,23 +119,46 @@ export default function RegisterRunModal({
   }
 
   async function handleSubmit() {
+    setError("");
     const kmValue = parseFloat(km.replace(",", "."));
     if (!kmValue || kmValue <= 0) return;
-    setSaving(true);
 
+    const targetIds = Array.from(selectedIds);
+    if (targetIds.length === 0) {
+      setError("Escolhe pelo menos uma jornada pra registrar.");
+      return;
+    }
+
+    setSaving(true);
     const timeSec = time ? parseTimeInput(time) : Math.round(kmValue * 330);
 
-    await supabase.from("runs").insert({
-      journey_id: journeyId,
-      user_id: userId,
-      km: kmValue,
-      time_sec: timeSec,
-      bpm: bpm ? parseInt(bpm, 10) : null,
-      calories: calories ? parseInt(calories, 10) : null,
-    });
+    const results = await Promise.all(
+      targetIds.map((journeyId) =>
+        supabase.from("runs").insert({
+          journey_id: journeyId,
+          user_id: userId,
+          km: kmValue,
+          time_sec: timeSec,
+          bpm: bpm ? parseInt(bpm, 10) : null,
+          calories: calories ? parseInt(calories, 10) : null,
+        })
+      )
+    );
 
     setSaving(false);
-    onRegistered();
+    const failed = results.filter((r) => r.error);
+    const succeededIds = targetIds.filter((_, i) => !results[i].error);
+
+    if (failed.length > 0 && succeededIds.length === 0) {
+      setError(failed[0].error?.message || "Não consegui registrar. Tenta de novo.");
+      return;
+    }
+
+    onRegistered(succeededIds);
+    if (failed.length > 0) {
+      setError(`Registrado em ${succeededIds.length} de ${targetIds.length} jornada(s). Alguma falhou — tenta de novo nela.`);
+      return;
+    }
     onClose();
   }
 
@@ -141,6 +179,33 @@ export default function RegisterRunModal({
             <X size={20} />
           </button>
         </div>
+
+        {journeys.length > 1 && (
+          <div className="mb-5">
+            <label className="text-xs font-bold text-muted uppercase tracking-wide mb-2 block">
+              Registrar em (pode marcar mais de uma)
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {journeys.map((j) => {
+                const isSelected = selectedIds.has(j.id);
+                return (
+                  <button
+                    key={j.id}
+                    onClick={() => toggleJourney(j.id)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold border"
+                    style={{
+                      background: isSelected ? `${j.theme_a}22` : "transparent",
+                      borderColor: isSelected ? j.theme_a : "rgba(255,255,255,0.12)",
+                      color: isSelected ? j.theme_a : "#8890B5",
+                    }}
+                  >
+                    {isSelected && <Check size={12} />} {j.title}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-2 mb-5">
           <button
@@ -284,13 +349,15 @@ export default function RegisterRunModal({
               style={fieldStyle("calories")}
             />
 
+            {error && <div className="text-xs text-red-400 font-semibold mb-3">{error}</div>}
+
             <button
               onClick={handleSubmit}
               disabled={saving}
               className="w-full py-4 rounded-2xl font-extrabold text-sm text-bg"
               style={{ background: `linear-gradient(90deg, ${themeA}, ${themeB})`, opacity: saving ? 0.6 : 1 }}
             >
-              {saving ? "Salvando..." : "Confirmar corrida"}
+              {saving ? "Salvando..." : `Confirmar corrida${selectedIds.size > 1 ? ` (${selectedIds.size} jornadas)` : ""}`}
             </button>
           </>
         )}

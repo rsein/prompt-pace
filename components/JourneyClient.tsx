@@ -17,11 +17,13 @@ export default function JourneyClient({
   members,
   initialRuns,
   currentUserId,
+  allJourneys,
 }: {
   journey: Journey;
   members: Profile[];
   initialRuns: Run[];
   currentUserId: string;
+  allJourneys: { id: string; title: string; theme_a: string; theme_b: string }[];
 }) {
   const supabase = createClient();
   const [runs, setRuns] = useState<Run[]>(initialRuns);
@@ -316,12 +318,13 @@ export default function JourneyClient({
 
       {registerOpen && (
         <RegisterRunModal
-          journeyId={journey.id}
+          journeys={allJourneys}
+          defaultJourneyIds={[journey.id]}
           userId={currentUserId}
-          themeA={journey.theme_a}
-          themeB={journey.theme_b}
           onClose={() => setRegisterOpen(false)}
-          onRegistered={refreshRuns}
+          onRegistered={(ids) => {
+            if (ids.includes(journey.id)) refreshRuns();
+          }}
         />
       )}
 

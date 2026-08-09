@@ -19,6 +19,15 @@ export default async function JourneyPage({ params }: { params: { id: string } }
 
   if (!journey) notFound();
 
+  const { data: allMemberships } = await supabase
+    .from("journey_members")
+    .select("journeys(id, title, theme_a, theme_b)")
+    .eq("user_id", user.id);
+
+  const allJourneys = (allMemberships ?? [])
+    .map((m: any) => m.journeys)
+    .filter(Boolean) as { id: string; title: string; theme_a: string; theme_b: string }[];
+
   const { data: memberRows } = await supabase
     .from("journey_members")
     .select("profiles(*)")
@@ -40,6 +49,7 @@ export default async function JourneyPage({ params }: { params: { id: string } }
       members={members}
       initialRuns={(runs ?? []) as Run[]}
       currentUserId={user.id}
+      allJourneys={allJourneys}
     />
   );
 }
