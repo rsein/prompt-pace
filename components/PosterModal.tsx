@@ -13,7 +13,7 @@ const LOADING_MESSAGES = [
 ];
 
 const MEDAL_COLORS = ["#FFC145", "#C7CEDD", "#CD8A5A"];
-const SLOGAN = "Prompt pra correr, pace pra provocar.";
+const SLOGAN = "Prompt rápido. Pace nem tanto.";
 
 export default function PosterModal({
   journey,
