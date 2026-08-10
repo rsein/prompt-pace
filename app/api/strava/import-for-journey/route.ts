@@ -38,6 +38,9 @@ export async function POST(request: Request) {
     if (e?.message === "not_connected") {
       return NextResponse.json({ error: "Você ainda não conectou o Strava." }, { status: 400 });
     }
+    if (e?.message === "db_write_failed") {
+      return NextResponse.json({ error: "O Strava respondeu, mas não consegui salvar no banco. Tenta de novo — se persistir, me avisa." }, { status: 500 });
+    }
     console.error("Erro ao importar corridas do Strava pra jornada:", e);
     return NextResponse.json({ error: "Não consegui importar agora. Tenta de novo depois." }, { status: 500 });
   }

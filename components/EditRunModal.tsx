@@ -66,6 +66,17 @@ export default function EditRunModal({
 
   async function handleDelete() {
     setDeleting(true);
+
+    // Se for corrida vinda do Strava, guarda que ela foi excluída de propósito dessa jornada —
+    // senão a próxima sincronização traria ela de volta sozinha.
+    if (run.source === "strava" && run.external_id) {
+      await supabase.from("excluded_strava_runs").insert({
+        journey_id: run.journey_id,
+        user_id: run.user_id,
+        external_id: run.external_id,
+      });
+    }
+
     const { error: err } = await supabase.from("runs").delete().eq("id", run.id);
     setDeleting(false);
     if (err) {
@@ -148,11 +159,16 @@ export default function EditRunModal({
           </>
         ) : (
           <div className="text-center py-4">
-            <div className="text-sm font-semibold mb-5">
+            <div className="text-sm font-semibold mb-2">
               Tem certeza que quer excluir essa corrida? Essa ação não pode ser desfeita.
             </div>
+            {run.source === "strava" && (
+              <div className="text-xs text-muted mb-3 leading-relaxed">
+                Essa corrida veio do Strava — ao excluir, ela fica marcada como excluída só dessa jornada e não volta sozinha numa próxima sincronização.
+              </div>
+            )}
             {error && <div className="text-xs text-red-400 font-semibold mb-3">{error}</div>}
-            <div className="flex gap-2.5">
+            <div className="flex gap-2.5 mt-4">
               <button
                 onClick={() => setConfirmingDelete(false)}
                 className="flex-1 py-3.5 rounded-2xl font-bold text-sm"

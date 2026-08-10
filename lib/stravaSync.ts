@@ -66,22 +66,38 @@ export async function syncStravaActivities(
     created_at: a.start_date,
   }));
   if (historyRows.length > 0) {
-    await admin.from("strava_history").upsert(historyRows, { onConflict: "user_id,external_id", ignoreDuplicates: true });
+    const { error: historyErr } = await admin
+      .from("strava_history")
+      .upsert(historyRows, { onConflict: "user_id,external_id", ignoreDuplicates: true });
+    if (historyErr) console.error("Erro ao gravar strava_history:", historyErr);
   }
 
   let imported = 0;
   let skippedDuplicates = 0;
+  let hadError = false;
 
   for (const journeyId of targetJourneyIds) {
-    const { data: existingRuns } = await admin
-      .from("runs")
-      .select("km, time_sec, created_at")
-      .eq("journey_id", journeyId)
-      .eq("user_id", userId)
-      .neq("source", "strava");
+    const [{ data: existingRuns }, { data: excluded }] = await Promise.all([
+      admin
+        .from("runs")
+        .select("km, time_sec, created_at")
+        .eq("journey_id", journeyId)
+        .eq("user_id", userId)
+        .neq("source", "strava"),
+      admin
+        .from("excluded_strava_runs")
+        .select("external_id")
+        .eq("journey_id", journeyId)
+        .eq("user_id", userId),
+    ]);
+
+    const excludedIds = new Set((excluded ?? []).map((e: { external_id: string }) => e.external_id));
 
     const rowsToUpsert = [];
     for (const activity of runs) {
+      // a pessoa já excluiu essa corrida dessa jornada antes de propósito — não reinsere
+      if (excludedIds.has(String(activity.id))) continue;
+
       const activityKm = activity.distance / 1000;
       if (looksLikeManualDuplicate(existingRuns ?? [], activityKm, activity.moving_time, new Date(activity.start_date))) {
         skippedDuplicates++;
@@ -105,8 +121,17 @@ export async function syncStravaActivities(
       const { error } = await admin
         .from("runs")
         .upsert(rowsToUpsert, { onConflict: "journey_id,source,external_id", ignoreDuplicates: true });
-      if (!error) imported += rowsToUpsert.length;
+      if (error) {
+        hadError = true;
+        console.error(`Erro ao gravar corridas do Strava na jornada ${journeyId}:`, error);
+      } else {
+        imported += rowsToUpsert.length;
+      }
     }
+  }
+
+  if (hadError && imported === 0) {
+    throw new Error("db_write_failed");
   }
 
   return { imported, skippedDuplicates, activityCount: runs.length };

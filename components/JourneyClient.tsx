@@ -134,7 +134,33 @@ export default function JourneyClient({
   }, [periodView]);
 
   const me = memberTotals.find((m) => m.id === currentUserId);
-  const myRuns = runs.filter((r) => r.user_id === currentUserId);
+  const monthRuns = useMemo(() => runs.filter((r) => isThisMonth(r.created_at)), [runs]);
+  const myRuns = monthRuns.filter((r) => r.user_id === currentUserId);
+
+  const previousMonthLabel = useMemo(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    return d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  }, []);
+
+  const previousMonthTotals = useMemo(() => {
+    const now = new Date();
+    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevRuns = runs.filter((r) => {
+      const d = new Date(r.created_at);
+      return d.getFullYear() === prevDate.getFullYear() && d.getMonth() === prevDate.getMonth();
+    });
+    return members
+      .map((m) => {
+        const mine = prevRuns.filter((r) => r.user_id === m.id);
+        const km = mine.reduce((s, r) => s + Number(r.km), 0);
+        const timeSec = mine.reduce((s, r) => s + r.time_sec, 0);
+        return { ...m, km, runsCount: mine.length, timeSec };
+      })
+      .sort((a, b) => b.km - a.km);
+  }, [members, runs]);
+  const hasPreviousMonthData = previousMonthTotals.some((m) => m.km > 0);
 
   async function handleInvite() {
     const url = `${window.location.origin}/join/${journey.id}`;
@@ -264,7 +290,30 @@ export default function JourneyClient({
       </div>
 
       <div className="px-5 pt-5">
-        <Podium memberTotals={memberTotals} />
+        {hasPreviousMonthData ? (
+          <>
+            <div
+              className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth -mx-5 px-5"
+              style={{ scrollbarWidth: "none" }}
+            >
+              <div className="w-full shrink-0 snap-center pr-1">
+                <div className="text-center text-[11px] font-extrabold uppercase tracking-wide text-muted mb-2">Mês atual</div>
+                <Podium memberTotals={memberTotals} />
+              </div>
+              <div className="w-full shrink-0 snap-center pl-1">
+                <div className="text-center text-[11px] font-extrabold uppercase tracking-wide text-muted mb-2 capitalize">
+                  {previousMonthLabel}
+                </div>
+                <Podium memberTotals={previousMonthTotals} />
+              </div>
+            </div>
+            <div className="text-center text-[10px] text-muted font-semibold mt-1 mb-1">
+              ← deslize pro lado pra ver o mês anterior
+            </div>
+          </>
+        ) : (
+          <Podium memberTotals={memberTotals} />
+        )}
 
         {memberTotals.filter((m) => m.km > 0).length >= 2 && (
           <button
@@ -282,7 +331,7 @@ export default function JourneyClient({
 
         <div className="flex items-center justify-between mb-2.5 mt-6">
           <div className="text-xs font-extrabold uppercase tracking-wide text-muted flex items-center gap-1.5">
-            <MapPin size={14} color={journey.theme_a} /> Histórico
+            <MapPin size={14} color={journey.theme_a} /> Histórico deste mês
           </div>
           <button
             onClick={handleStravaRefresh}
@@ -295,8 +344,11 @@ export default function JourneyClient({
           </button>
         </div>
         {stravaSyncMsg && <div className="text-[11px] text-muted font-semibold mb-2 -mt-1">{stravaSyncMsg}</div>}
+        {monthRuns.length === 0 && (
+          <div className="text-sm text-muted bg-surface rounded-2xl p-4 mb-1">Nenhuma corrida registrada esse mês ainda.</div>
+        )}
         <div className="bg-surface rounded-2xl p-1.5">
-          {runs.slice(0, 10).map((r, i) => {
+          {monthRuns.slice(0, 10).map((r, i) => {
             const member = members.find((m) => m.id === r.user_id)!;
             const isMine = r.user_id === currentUserId;
             return (
@@ -305,7 +357,7 @@ export default function JourneyClient({
                 onClick={() => isMine && setEditingRun(r)}
                 disabled={!isMine}
                 className="w-full flex items-center gap-3 px-2.5 py-2.5 text-left"
-                style={{ borderBottom: i < runs.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
+                style={{ borderBottom: i < Math.min(monthRuns.length, 10) - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
               >
                 <Avatar profile={member} size={28} />
                 <div className="flex-1">

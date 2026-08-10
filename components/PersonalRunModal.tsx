@@ -34,6 +34,7 @@ export default function PersonalRunModal({
   const [selectedJourneys, setSelectedJourneys] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
   const [addResult, setAddResult] = useState("");
+  const [addedTo, setAddedTo] = useState<string[]>([]);
 
   function toggleJourney(id: string) {
     setSelectedJourneys((prev) => {
@@ -97,17 +98,35 @@ export default function PersonalRunModal({
       external_id: run.source === "strava" ? run.key : null,
     }));
 
-    const { error: err } =
+    const { data: inserted, error: err } =
       run.source === "strava"
-        ? await supabase.from("runs").upsert(rows, { onConflict: "journey_id,source,external_id", ignoreDuplicates: true })
-        : await supabase.from("runs").insert(rows);
+        ? await supabase.from("runs").upsert(rows, { onConflict: "journey_id,source,external_id", ignoreDuplicates: true }).select()
+        : await supabase.from("runs").insert(rows).select();
 
     setAdding(false);
     if (err) {
-      setAddResult(err.message || "Não consegui adicionar.");
+      console.error("Erro ao adicionar corrida na jornada:", err);
+      setAddResult(`Erro: ${err.message}`);
       return;
     }
-    setAddResult(`Adicionada em ${selectedJourneys.size} jornada(s)!`);
+    if (!inserted || inserted.length === 0) {
+      // upsert com ignoreDuplicates não escreveu nada — já existia uma corrida do Strava igual nessa jornada
+      setAddResult("Essa corrida já estava nessa jornada.");
+      return;
+    }
+
+    // Se essa corrida tinha sido excluída de alguma dessas jornadas antes, remove a exclusão —
+    // você está pedindo pra adicionar de novo de propósito agora.
+    if (run.source === "strava") {
+      await supabase
+        .from("excluded_strava_runs")
+        .delete()
+        .eq("external_id", run.key)
+        .in("journey_id", Array.from(selectedJourneys));
+    }
+
+    setAddedTo(Array.from(selectedJourneys));
+    setAddResult(`Adicionada em ${inserted.length} jornada(s)! Recarrega a jornada pra ver (pode levar um instante).`);
     setSelectedJourneys(new Set());
   }
 
@@ -180,7 +199,31 @@ export default function PersonalRunModal({
                     );
                   })}
                 </div>
-                {addResult && <div className="text-xs font-semibold mb-2" style={{ color: "#5CFF8F" }}>{addResult}</div>}
+                {addResult && (
+                  <div className="mb-2.5">
+                    <div className="text-xs font-semibold mb-1.5" style={{ color: addResult.startsWith("Erro") ? "#f87171" : "#5CFF8F" }}>
+                      {addResult}
+                    </div>
+                    {addedTo.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {addedTo.map((jid) => {
+                          const j = journeys.find((x) => x.id === jid);
+                          if (!j) return null;
+                          return (
+                            <a
+                              key={jid}
+                              href={`/journey/${jid}`}
+                              className="text-[11px] font-bold px-2.5 py-1.5 rounded-full"
+                              style={{ background: `${j.theme_a}22`, color: j.theme_a }}
+                            >
+                              Ver {j.title} →
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <button
                   onClick={handleAddToJourneys}
                   disabled={adding || selectedJourneys.size === 0}
