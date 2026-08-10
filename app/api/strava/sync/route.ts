@@ -67,7 +67,9 @@ export async function POST(request: Request) {
     }
 
     const activities: StravaActivity[] = await res.json();
-    const runs = activities.filter((a) => a.type === "Run" || a.sport_type === "Run" || a.sport_type === "TrailRun");
+    const runs = activities.filter(
+      (a) => a.type === "Run" || a.sport_type === "Run" || a.sport_type === "TrailRun" || a.sport_type === "VirtualRun"
+    );
 
     // Pega as corridas que já existem (manual ou por foto) pra não duplicar com o que o Strava também tem.
     // Só considera duplicata se bater tudo: mesmo dia, distância bem parecida E duração bem parecida —
