@@ -11,10 +11,8 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const journeyId = searchParams.get("state");
   const error = searchParams.get("error");
 
-  if (!journeyId) return NextResponse.redirect(new URL("/home", request.url));
   if (!user) return NextResponse.redirect(new URL("/login", request.url));
 
   if (error || !code) {
@@ -34,7 +32,6 @@ export async function GET(request: Request) {
         refresh_token: token.refresh_token,
         expires_at: token.expires_at,
         scope: "activity:read_all",
-        default_journey_id: journeyId,
         last_synced_at: null,
       },
       { onConflict: "user_id,provider" }

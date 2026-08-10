@@ -37,12 +37,10 @@ export default function ProfileClient({
   profile,
   userId,
   email,
-  journeys,
 }: {
   profile: Profile;
   userId: string;
   email: string;
-  journeys: { id: string; title: string; theme_a: string }[];
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -61,7 +59,6 @@ export default function ProfileClient({
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMsg, setPushMsg] = useState("");
-  const [syncJourneyId, setSyncJourneyId] = useState(journeys[0]?.id ?? "");
 
   useEffect(() => {
     if (!isPushSupported()) return;
@@ -117,7 +114,6 @@ export default function ProfileClient({
   }
 
   const bmi = bmiInfo(heightCm ? parseFloat(heightCm.replace(",", ".")) : null, weightKg ? parseFloat(weightKg.replace(",", ".")) : null);
-  const syncJourney = journeys.find((j) => j.id === syncJourneyId) ?? journeys[0];
 
   return (
     <div className="max-w-md mx-auto pb-24 px-5 pt-6">
@@ -273,32 +269,9 @@ export default function ProfileClient({
       </div>
 
       <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5">Sincronizar corridas</div>
-
-      {journeys.length === 0 && (
-        <div className="text-sm text-muted bg-surface rounded-2xl p-4">
-          Entra numa jornada primeiro pra poder sincronizar corridas pra ela.
-        </div>
-      )}
-
-      {journeys.length > 1 && (
-        <select
-          value={syncJourneyId}
-          onChange={(e) => setSyncJourneyId(e.target.value)}
-          className="w-full bg-surface rounded-xl px-3.5 py-2.5 text-sm font-semibold mb-2.5 border border-white/10"
-        >
-          {journeys.map((j) => (
-            <option key={j.id} value={j.id}>
-              Sincronizar pra: {j.title}
-            </option>
-          ))}
-        </select>
-      )}
-
-      {syncJourney && (
-        <Suspense fallback={null}>
-          <WearablesCard journeyId={syncJourney.id} themeA={syncJourney.theme_a || THEME_A} onSynced={() => {}} />
-        </Suspense>
-      )}
+      <Suspense fallback={null}>
+        <WearablesCard themeA={THEME_A} onSynced={() => {}} />
+      </Suspense>
     </div>
   );
 }

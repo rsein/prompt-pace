@@ -24,12 +24,18 @@ export default async function JoinPage({ params }: { params: { id: string } }) {
 
   const { data: existing } = await admin
     .from("journey_members")
-    .select("user_id")
+    .select("user_id, status")
     .eq("journey_id", journey.id)
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (existing) redirect(`/journey/${journey.id}`);
+  if (existing?.status === "accepted") redirect(`/journey/${journey.id}`);
+
+  if (existing?.status === "pending") {
+    // já tinha sido convidado por busca de nome — clicar no link é a confirmação, aceita direto
+    await admin.from("journey_members").update({ status: "accepted" }).eq("journey_id", journey.id).eq("user_id", user.id);
+    redirect(`/journey/${journey.id}`);
+  }
 
   return <JoinClient journey={journey} />;
 }

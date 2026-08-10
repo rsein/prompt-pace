@@ -8,10 +8,7 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { searchParams } = new URL(request.url);
-  const journeyId = searchParams.get("journeyId");
-
-  if (!user || !journeyId) {
+  if (!user) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -19,5 +16,5 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL(`/profile?strava=not_configured`, request.url));
   }
 
-  return NextResponse.redirect(stravaAuthorizeUrl(journeyId));
+  return NextResponse.redirect(stravaAuthorizeUrl());
 }

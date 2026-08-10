@@ -7,6 +7,7 @@ import { Plus, Play, MapPin, Sun, CloudRain } from "lucide-react";
 import JourneyFormModal from "./JourneyFormModal";
 import JourneyCardMenu from "./JourneyCardMenu";
 import RegisterRunModal from "./RegisterRunModal";
+import PendingInvites from "./PendingInvites";
 import Avatar from "./Avatar";
 import { periodProgress, fmtPace } from "@/lib/utils";
 import type { Journey, Profile } from "@/lib/types";
@@ -123,13 +124,18 @@ export default function HomeClient({
       )}
 
       {(myStats.monthlyKm > 0 || myStats.annualKm > 0) && (
-        <div className="grid grid-cols-2 gap-2.5 mb-6">
-          <MiniStat label="Este mês" value={`${myStats.monthlyKm.toFixed(1)} km`} />
-          <MiniStat label="Este ano" value={`${myStats.annualKm.toFixed(1)} km`} />
-          <MiniStat label="Melhor pace" value={myStats.bestPaceSec ? `${fmtPace(myStats.bestPaceSec, 1)} /km` : "—"} />
-          <MiniStat label="Pace médio" value={myStats.avgPaceSec ? `${fmtPace(myStats.avgPaceSec, 1)} /km` : "—"} />
-        </div>
+        <Link href="/stats" className="block mb-6">
+          <div className="grid grid-cols-2 gap-2.5">
+            <MiniStat label="Este mês" value={`${myStats.monthlyKm.toFixed(1)} km`} />
+            <MiniStat label="Este ano" value={`${myStats.annualKm.toFixed(1)} km`} />
+            <MiniStat label="Melhor pace" value={myStats.bestPaceSec ? `${fmtPace(myStats.bestPaceSec, 1)} /km` : "—"} />
+            <MiniStat label="Pace médio" value={myStats.avgPaceSec ? `${fmtPace(myStats.avgPaceSec, 1)} /km` : "—"} />
+          </div>
+          <div className="text-[10px] text-muted font-bold text-center mt-2">Toque pra ver estatísticas completas →</div>
+        </Link>
       )}
+
+      <PendingInvites userId={userId} />
 
       <div className="flex items-start justify-between mb-6">
         <div>

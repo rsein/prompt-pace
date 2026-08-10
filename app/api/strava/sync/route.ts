@@ -1,22 +1,20 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { refreshStravaToken, type StravaActivity } from "@/lib/strava";
+import { syncStravaActivities } from "@/lib/stravaSync";
 
-export async function POST(request: Request) {
+export async function POST() {
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
-  const { journeyId } = await request.json();
-  if (!journeyId) return NextResponse.json({ error: "journeyId faltando" }, { status: 400 });
-
   const admin = createAdminClient();
+
   const { data: conn } = await admin
     .from("wearable_connections")
-    .select("*")
+    .select("last_synced_at")
     .eq("user_id", user.id)
     .eq("provider", "strava")
     .maybeSingle();
@@ -25,94 +23,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Você ainda não conectou o Strava." }, { status: 400 });
   }
 
-  let accessToken = conn.access_token as string;
+  // Sincroniza com TODAS as jornadas que você já aceitou participar — se alguma corrida não fizer
+  // sentido numa jornada específica, dá pra excluir ela por lá depois (toca na corrida → Excluir).
+  const { data: memberships } = await admin
+    .from("journey_members")
+    .select("journey_id")
+    .eq("user_id", user.id)
+    .eq("status", "accepted");
 
-  // renova o token se estiver perto de expirar
-  if (!conn.expires_at || conn.expires_at < Math.floor(Date.now() / 1000) + 60) {
-    try {
-      const refreshed = await refreshStravaToken(conn.refresh_token);
-      accessToken = refreshed.access_token;
-      await admin
-        .from("wearable_connections")
-        .update({
-          access_token: refreshed.access_token,
-          refresh_token: refreshed.refresh_token,
-          expires_at: refreshed.expires_at,
-        })
-        .eq("user_id", user.id)
-        .eq("provider", "strava");
-    } catch (e) {
-      console.error("Erro ao renovar token do Strava:", e);
-      return NextResponse.json(
-        { error: "A conexão com o Strava expirou. Conecta de novo na aba Perfil." },
-        { status: 401 }
-      );
-    }
-  }
+  const journeyIds = (memberships ?? []).map((m: { journey_id: string }) => m.journey_id);
 
-  // busca desde a última sincronização (ou os últimos 90 dias, na primeira vez)
   const after = conn.last_synced_at
     ? Math.floor(new Date(conn.last_synced_at).getTime() / 1000)
     : Math.floor(Date.now() / 1000) - 90 * 86400;
 
   try {
-    const res = await fetch(
-      `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=100`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-
-    if (!res.ok) {
-      console.error("Erro ao buscar atividades do Strava:", res.status, await res.text());
-      return NextResponse.json({ error: "Não consegui buscar as corridas no Strava agora." }, { status: 502 });
-    }
-
-    const activities: StravaActivity[] = await res.json();
-    const runs = activities.filter(
-      (a) => a.type === "Run" || a.sport_type === "Run" || a.sport_type === "TrailRun" || a.sport_type === "VirtualRun"
-    );
-
-    // Pega as corridas que já existem (manual ou por foto) pra não duplicar com o que o Strava também tem.
-    // Só considera duplicata se bater tudo: mesmo dia, distância bem parecida E duração bem parecida —
-    // assim uma corrida nova que só coincide na distância (ex: sempre corre 5km) não é bloqueada à toa.
-    const { data: existingRuns } = await admin
-      .from("runs")
-      .select("km, time_sec, created_at")
-      .eq("journey_id", journeyId)
-      .eq("user_id", user.id)
-      .neq("source", "strava");
-
-    function looksLikeDuplicate(activityKm: number, activityTimeSec: number, activityDate: Date) {
-      return (existingRuns ?? []).some((r) => {
-        const sameDay = new Date(r.created_at).toDateString() === activityDate.toDateString();
-        const kmDiff = Math.abs(Number(r.km) - activityKm);
-        const timeDiff = Math.abs(r.time_sec - activityTimeSec);
-        return sameDay && kmDiff < 0.15 && timeDiff < 120;
-      });
-    }
-
-    let imported = 0;
-    let skippedDuplicates = 0;
-    for (const activity of runs) {
-      const activityKm = activity.distance / 1000;
-      if (looksLikeDuplicate(activityKm, activity.moving_time, new Date(activity.start_date))) {
-        skippedDuplicates++;
-        continue;
-      }
-
-      const { error: insertError } = await admin.from("runs").insert({
-        journey_id: journeyId,
-        user_id: user.id,
-        km: activityKm,
-        time_sec: activity.moving_time,
-        bpm: activity.average_heartrate ? Math.round(activity.average_heartrate) : null,
-        calories: activity.calories ? Math.round(activity.calories) : null,
-        created_at: activity.start_date,
-        source: "strava",
-        external_id: String(activity.id),
-      });
-      // ignora erro de duplicata (unique index runs_external_unique) — só conta o que entrou
-      if (!insertError) imported++;
-    }
+    const { imported, skippedDuplicates } = await syncStravaActivities(admin, user.id, after, journeyIds);
 
     await admin
       .from("wearable_connections")
@@ -121,8 +47,11 @@ export async function POST(request: Request) {
       .eq("provider", "strava");
 
     return NextResponse.json({ imported, skippedDuplicates });
-  } catch (e) {
-    console.error("Erro inesperado ao sincronizar Strava:", e);
+  } catch (e: any) {
+    if (e?.message === "not_connected") {
+      return NextResponse.json({ error: "Você ainda não conectou o Strava." }, { status: 400 });
+    }
+    console.error("Erro ao sincronizar Strava:", e);
     return NextResponse.json({ error: "Não consegui sincronizar agora. Tenta de novo." }, { status: 500 });
   }
 }

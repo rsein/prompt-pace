@@ -35,6 +35,8 @@ export default function JourneyFormModal({
   const [narratorStyle, setNarratorStyle] = useState<NarratorStyleKey>((journey?.narrator_style as NarratorStyleKey) ?? "engracado");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [importPrompt, setImportPrompt] = useState<{ journeyId: string; sinceDate: string } | null>(null);
+  const [importing, setImporting] = useState(false);
 
   // Participantes: busca por nome + sugestões de quem já correu com você antes
   const [suggestions, setSuggestions] = useState<Profile[]>([]);
@@ -133,51 +135,125 @@ export default function JourneyFormModal({
         await supabase
           .from("journey_members")
           .upsert(
-            selected.map((p) => ({ journey_id: journey!.id, user_id: p.id })),
+            selected.map((p) => ({ journey_id: journey!.id, user_id: p.id, status: "pending" })),
             { onConflict: "journey_id,user_id", ignoreDuplicates: true }
           );
       }
-    } else {
-      const preset = THEME_PRESETS[Math.floor(Math.random() * THEME_PRESETS.length)];
-      const newId = crypto.randomUUID();
-      const { error: err } = await supabase
-        .from("journeys")
-        .insert({ id: newId, ...payload, theme_a: preset.a, theme_b: preset.b, created_by: userId });
+      setSaving(false);
+      onSaved();
+      onClose();
+      return;
+    }
 
-      if (err) {
-        console.error("Erro ao criar jornada:", err);
-        setError(err.message || "Não consegui criar. Tenta de novo.");
+    const preset = THEME_PRESETS[Math.floor(Math.random() * THEME_PRESETS.length)];
+    const newId = crypto.randomUUID();
+    const { error: err } = await supabase
+      .from("journeys")
+      .insert({ id: newId, ...payload, theme_a: preset.a, theme_b: preset.b, created_by: userId });
+
+    if (err) {
+      console.error("Erro ao criar jornada:", err);
+      setError(err.message || "Não consegui criar. Tenta de novo.");
+      setSaving(false);
+      return;
+    }
+
+    // Primeiro entra você (satisfaz a regra "auth.uid() = user_id"), só depois convida os amigos —
+    // a regra que permite convidar outras pessoas exige que você já seja membro da jornada.
+    const { error: selfErr } = await supabase.from("journey_members").insert({ journey_id: newId, user_id: userId });
+    if (selfErr) {
+      console.error("Erro ao entrar na jornada criada:", selfErr);
+      setError(`Jornada criada, mas não consegui te adicionar como membro: ${selfErr.message}`);
+      setSaving(false);
+      return;
+    }
+
+    const otherMemberIds = selected.map((p) => p.id).filter((id) => id !== userId);
+    if (otherMemberIds.length > 0) {
+      const { error: membersErr } = await supabase
+        .from("journey_members")
+        .insert(otherMemberIds.map((id) => ({ journey_id: newId, user_id: id, status: "pending" })));
+      if (membersErr) {
+        console.error("Erro ao adicionar membros na jornada:", membersErr);
+        setError(`Jornada criada, mas não consegui adicionar todo mundo: ${membersErr.message}`);
         setSaving(false);
         return;
-      }
-
-      // Primeiro entra você (satisfaz a regra "auth.uid() = user_id"), só depois convida os amigos —
-      // a regra que permite convidar outras pessoas exige que você já seja membro da jornada.
-      const { error: selfErr } = await supabase.from("journey_members").insert({ journey_id: newId, user_id: userId });
-      if (selfErr) {
-        console.error("Erro ao entrar na jornada criada:", selfErr);
-        setError(`Jornada criada, mas não consegui te adicionar como membro: ${selfErr.message}`);
-        setSaving(false);
-        return;
-      }
-
-      const otherMemberIds = selected.map((p) => p.id).filter((id) => id !== userId);
-      if (otherMemberIds.length > 0) {
-        const { error: membersErr } = await supabase
-          .from("journey_members")
-          .insert(otherMemberIds.map((id) => ({ journey_id: newId, user_id: id })));
-        if (membersErr) {
-          console.error("Erro ao adicionar membros na jornada:", membersErr);
-          setError(`Jornada criada, mas não consegui adicionar todo mundo: ${membersErr.message}`);
-          setSaving(false);
-          return;
-        }
       }
     }
 
     setSaving(false);
+
+    // Se a pessoa tem Strava conectado, pergunta se quer importar o que já correu nesse período
+    try {
+      const statusData = await fetch("/api/wearables/status").then((r) => r.json());
+      const stravaConnected = (statusData.statuses ?? []).find(
+        (s: { provider: string; connected: boolean }) => s.provider === "strava"
+      )?.connected;
+
+      if (stravaConnected) {
+        const periodStart =
+          monthly && !annual
+            ? new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+            : new Date(new Date().getFullYear(), 0, 1);
+        setImportPrompt({ journeyId: newId, sinceDate: periodStart.toISOString() });
+        return;
+      }
+    } catch {
+      // se não der pra checar o status do Strava, só segue sem perguntar
+    }
+
     onSaved();
     onClose();
+  }
+
+  async function handleImportChoice(importFromStrava: boolean) {
+    if (!importPrompt) return;
+    if (importFromStrava) {
+      setImporting(true);
+      try {
+        await fetch("/api/strava/import-for-journey", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(importPrompt),
+        });
+      } catch {
+        // se falhar, a pessoa ainda pode sincronizar manual depois pelo perfil
+      }
+      setImporting(false);
+    }
+    setImportPrompt(null);
+    onSaved();
+    onClose();
+  }
+
+  if (importPrompt) {
+    return (
+      <div className="fixed inset-0 bg-black/70 flex items-end z-40">
+        <div className="w-full max-w-md mx-auto bg-surface2 rounded-t-3xl p-6 text-center">
+          <div className="font-display text-2xl mb-2">Jornada criada! 🎉</div>
+          <div className="text-sm text-muted mb-6 leading-relaxed">
+            Você já corre com o Strava conectado. Quer importar as corridas que já fez desde{" "}
+            {monthly && !annual ? "o início deste mês" : "1º de janeiro"} pra essa jornada, ou prefere começar do zero?
+          </div>
+          <button
+            onClick={() => handleImportChoice(true)}
+            disabled={importing}
+            className="w-full py-3.5 rounded-2xl font-extrabold text-sm text-bg bg-gradient-to-r from-[#29F1D6] to-[#8B5CF6] mb-2.5"
+            style={{ opacity: importing ? 0.7 : 1 }}
+          >
+            {importing ? "Importando..." : "Importar do Strava"}
+          </button>
+          <button
+            onClick={() => handleImportChoice(false)}
+            disabled={importing}
+            className="w-full py-3.5 rounded-2xl font-bold text-sm"
+            style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+          >
+            Começar do zero
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -357,8 +433,8 @@ export default function JourneyFormModal({
 
             <div className="text-[11px] text-muted mb-4 leading-relaxed">
               {isEdit
-                ? "Quem você marcar aqui entra na jornada assim que salvar."
-                : "Você entra automaticamente. Só quem você buscar/marcar aqui entra também."}
+                ? "Quem você marcar aqui recebe um convite pra aceitar — não entra direto."
+                : "Você entra automaticamente. Quem você buscar/marcar aqui recebe um convite pra aceitar."}
             </div>
           </>
 

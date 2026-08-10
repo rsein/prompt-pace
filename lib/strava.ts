@@ -1,7 +1,7 @@
 // Helpers pra integração com a API v3 do Strava (OAuth2).
 // Docs: https://developers.strava.com/docs/authentication/
 
-export function stravaAuthorizeUrl(journeyId: string) {
+export function stravaAuthorizeUrl() {
   const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/strava/callback`;
   const params = new URLSearchParams({
     client_id: process.env.STRAVA_CLIENT_ID!,
@@ -9,7 +9,6 @@ export function stravaAuthorizeUrl(journeyId: string) {
     response_type: "code",
     approval_prompt: "auto",
     scope: "activity:read_all",
-    state: journeyId,
   });
   return `https://www.strava.com/oauth/authorize?${params.toString()}`;
 }
@@ -59,3 +58,24 @@ export type StravaActivity = {
   average_heartrate?: number;
   calories?: number;
 };
+
+export function isRunActivity(a: StravaActivity) {
+  return a.type === "Run" || a.sport_type === "Run" || a.sport_type === "TrailRun" || a.sport_type === "VirtualRun";
+}
+
+// Busca atividades do Strava a partir de uma data, paginando até acabar (ou até o limite de segurança).
+// Usado tanto na sincronização normal (últimos 90 dias) quanto na importação de histórico completo.
+export async function fetchStravaActivities(accessToken: string, afterUnixSeconds: number, maxPages = 10): Promise<StravaActivity[]> {
+  const all: StravaActivity[] = [];
+  for (let page = 1; page <= maxPages; page++) {
+    const res = await fetch(
+      `https://www.strava.com/api/v3/athlete/activities?after=${afterUnixSeconds}&per_page=200&page=${page}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!res.ok) throw new Error(`Falha ao buscar atividades do Strava: ${res.status}`);
+    const batch: StravaActivity[] = await res.json();
+    all.push(...batch);
+    if (batch.length < 200) break; // última página
+  }
+  return all;
+}

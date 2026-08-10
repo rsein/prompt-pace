@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { RefreshCw, Link2, Unlink, CheckCircle2 } from "lucide-react";
+import { RefreshCw, Link2, Unlink, CheckCircle2, History } from "lucide-react";
 import type { WearableStatus } from "@/lib/types";
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -11,19 +11,12 @@ const PROVIDER_LABEL: Record<string, string> = {
   samsung: "Samsung Health",
 };
 
-export default function WearablesCard({
-  journeyId,
-  themeA,
-  onSynced,
-}: {
-  journeyId: string;
-  themeA: string;
-  onSynced: () => void;
-}) {
+export default function WearablesCard({ themeA, onSynced }: { themeA: string; onSynced: () => void }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [statuses, setStatuses] = useState<WearableStatus[] | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const [msg, setMsg] = useState("");
 
   async function loadStatus() {
@@ -59,11 +52,7 @@ export default function WearablesCard({
     setSyncing(true);
     if (!silent) setMsg("");
     try {
-      const res = await fetch("/api/strava/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ journeyId }),
-      });
+      const res = await fetch("/api/strava/sync", { method: "POST" });
       const data = await res.json();
       if (!res.ok || data.error) {
         setMsg(data.error || "Não consegui sincronizar agora.");
@@ -71,7 +60,7 @@ export default function WearablesCard({
         const parts = [];
         if (data.imported > 0) parts.push(`${data.imported} corrida(s) importada(s)`);
         if (data.skippedDuplicates > 0) parts.push(`${data.skippedDuplicates} ignorada(s) por já existir`);
-        setMsg(parts.length > 0 ? `${parts.join(", ")} do Strava.` : "Tudo certo — nenhuma corrida nova pra importar.");
+        setMsg(parts.length > 0 ? `${parts.join(", ")} em todas as suas jornadas.` : "Tudo certo — nenhuma corrida nova pra importar.");
         onSynced();
       }
       loadStatus();
@@ -79,6 +68,28 @@ export default function WearablesCard({
       setMsg("Não consegui sincronizar agora. Tenta de novo.");
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleBackfill() {
+    setBackfilling(true);
+    setMsg("");
+    try {
+      const res = await fetch("/api/strava/backfill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ years: 3 }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setMsg(data.error || "Não consegui importar o histórico agora.");
+      } else {
+        setMsg(`Histórico atualizado — ${data.imported} corrida(s) dos últimos 3 anos no seu arquivo pessoal.`);
+      }
+    } catch {
+      setMsg("Não consegui importar o histórico agora. Tenta de novo.");
+    } finally {
+      setBackfilling(false);
     }
   }
 
@@ -94,8 +105,6 @@ export default function WearablesCard({
   }
 
   const strava = statuses?.find((s) => s.provider === "strava");
-  const garmin = statuses?.find((s) => s.provider === "garmin");
-  const samsung = statuses?.find((s) => s.provider === "samsung");
 
   return (
     <div className="space-y-2.5">
@@ -153,7 +162,7 @@ export default function WearablesCard({
             </div>
           ) : (
             <a
-              href={`/api/strava/connect?journeyId=${journeyId}`}
+              href="/api/strava/connect"
               className="px-3.5 py-2 rounded-full text-xs font-bold shrink-0 flex items-center gap-1.5"
               style={{ background: `${themeA}33`, color: themeA }}
             >
@@ -162,9 +171,22 @@ export default function WearablesCard({
           )}
         </div>
         {strava?.connected && (
-          <div className="text-[11px] text-[#5CFF8F] font-semibold mt-2 flex items-center gap-1">
-            <CheckCircle2 size={12} /> As novas corridas do Strava entram como um registro comum na jornada.
-          </div>
+          <>
+            <div className="text-[11px] text-[#5CFF8F] font-semibold mt-2 flex items-center gap-1">
+              <CheckCircle2 size={12} /> Sincroniza com todas as suas jornadas automaticamente.
+            </div>
+            <button
+              onClick={handleBackfill}
+              disabled={backfilling}
+              className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-muted mt-2.5"
+              style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <History size={13} /> {backfilling ? "Importando..." : "Importar histórico completo (últimos 3 anos)"}
+            </button>
+            <div className="text-[10px] text-muted mt-1.5 leading-relaxed">
+              Isso só alimenta suas estatísticas pessoais — não adiciona corridas antigas dentro das jornadas.
+            </div>
+          </>
         )}
       </div>
 
