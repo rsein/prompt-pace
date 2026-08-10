@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Plus, Sparkles, MapPin, Share2, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -161,6 +161,13 @@ export default function JourneyClient({
       .sort((a, b) => b.km - a.km);
   }, [members, runs]);
   const hasPreviousMonthData = previousMonthTotals.some((m) => m.km > 0);
+  const carouselRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (hasPreviousMonthData && carouselRef.current) {
+      carouselRef.current.scrollLeft = carouselRef.current.clientWidth;
+    }
+  }, [hasPreviousMonthData]);
 
   async function handleInvite() {
     const url = `${window.location.origin}/join/${journey.id}`;
@@ -293,22 +300,23 @@ export default function JourneyClient({
         {hasPreviousMonthData ? (
           <>
             <div
+              ref={carouselRef}
               className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth -mx-5 px-5"
               style={{ scrollbarWidth: "none" }}
             >
               <div className="w-full shrink-0 snap-center pr-1">
-                <div className="text-center text-[11px] font-extrabold uppercase tracking-wide text-muted mb-2">Mês atual</div>
-                <Podium memberTotals={memberTotals} />
-              </div>
-              <div className="w-full shrink-0 snap-center pl-1">
                 <div className="text-center text-[11px] font-extrabold uppercase tracking-wide text-muted mb-2 capitalize">
                   {previousMonthLabel}
                 </div>
                 <Podium memberTotals={previousMonthTotals} />
               </div>
+              <div className="w-full shrink-0 snap-center pl-1">
+                <div className="text-center text-[11px] font-extrabold uppercase tracking-wide text-muted mb-2">Mês atual</div>
+                <Podium memberTotals={memberTotals} />
+              </div>
             </div>
             <div className="text-center text-[10px] text-muted font-semibold mt-1 mb-1">
-              ← deslize pro lado pra ver o mês anterior
+              deslize pro lado pra ver o mês anterior
             </div>
           </>
         ) : (

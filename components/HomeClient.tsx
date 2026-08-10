@@ -56,6 +56,32 @@ export default function HomeClient({
     []
   );
 
+  // Sincroniza com o Strava sozinho sempre que a Home abre — sem precisar clicar em nada.
+  // Limita a 1x a cada 5 minutos por navegador, pra não gastar à toa o limite de chamadas do Strava.
+  useEffect(() => {
+    const THROTTLE_MS = 5 * 60 * 1000;
+    const lastSync = Number(sessionStorage.getItem("stravaAutoSyncAt") || 0);
+    if (Date.now() - lastSync < THROTTLE_MS) return;
+
+    (async () => {
+      try {
+        const statusData = await fetch("/api/wearables/status").then((r) => r.json());
+        const stravaConnected = (statusData.statuses ?? []).find(
+          (s: { provider: string; connected: boolean }) => s.provider === "strava"
+        )?.connected;
+        if (!stravaConnected) return;
+
+        sessionStorage.setItem("stravaAutoSyncAt", String(Date.now()));
+        const res = await fetch("/api/strava/sync", { method: "POST" });
+        const data = await res.json();
+        if (data.imported > 0) router.refresh();
+      } catch {
+        // sincronização automática é só um bônus — se falhar, a pessoa ainda pode sincronizar manual
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined" || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
