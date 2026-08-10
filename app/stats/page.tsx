@@ -13,6 +13,15 @@ export default async function StatsPage() {
   const runsList = await getPersonalRuns(supabase, user.id);
   const stats = computeStats(runsList);
 
+  const { data: memberships } = await supabase
+    .from("journey_members")
+    .select("journeys(id, title, theme_a, theme_b)")
+    .eq("user_id", user.id)
+    .eq("status", "accepted");
+  const journeys = (memberships ?? [])
+    .map((m: any) => m.journeys)
+    .filter(Boolean) as { id: string; title: string; theme_a: string; theme_b: string }[];
+
   // Agrupa por mês (últimos 12 meses), pro gráfico e pra lista
   const now = new Date();
   const months: { key: string; label: string; km: number }[] = [];
@@ -31,5 +40,5 @@ export default async function StatsPage() {
 
   const sortedRuns = [...runsList].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-  return <StatsClient stats={stats} months={months} runs={sortedRuns} />;
+  return <StatsClient stats={stats} months={months} runs={sortedRuns} journeys={journeys} userId={user.id} />;
 }

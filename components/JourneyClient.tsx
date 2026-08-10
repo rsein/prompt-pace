@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Plus, Sparkles, MapPin, Share2 } from "lucide-react";
+import { ChevronLeft, Plus, Sparkles, MapPin, Share2, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fmtPace, fmtTime, fmtDate, isThisMonth, isThisYear, currentMonthLabel, currentYearLabel, periodProgress } from "@/lib/utils";
 import Avatar from "./Avatar";
@@ -35,6 +35,8 @@ export default function JourneyClient({
   const [aiComment, setAiComment] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [inviteMsg, setInviteMsg] = useState("");
+  const [stravaSyncing, setStravaSyncing] = useState(false);
+  const [stravaSyncMsg, setStravaSyncMsg] = useState("");
 
   const showToggle = journey.period_monthly && journey.period_annual;
   const goalKm = periodView === "monthly" ? journey.monthly_goal_km ?? 0 : journey.annual_goal_km ?? 0;
@@ -145,6 +147,38 @@ export default function JourneyClient({
     }
   }
 
+  async function handleStravaRefresh() {
+    setStravaSyncing(true);
+    setStravaSyncMsg("");
+    try {
+      // Busca desde o início do período mais amplo da jornada, pra também servir como recuperação
+      // caso alguma corrida tenha sido apagada sem querer — o Strava ainda tem o histórico real.
+      const sinceDate = journey.period_annual
+        ? new Date(new Date().getFullYear(), 0, 1).toISOString()
+        : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+
+      const res = await fetch("/api/strava/import-for-journey", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ journeyId: journey.id, sinceDate }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setStravaSyncMsg(data.error || "Não consegui sincronizar agora.");
+      } else if (data.imported > 0) {
+        setStravaSyncMsg(`${data.imported} corrida(s) do Strava sincronizada(s)!`);
+        await reloadRuns();
+      } else {
+        setStravaSyncMsg("Tudo em dia — nenhuma corrida nova do Strava.");
+      }
+    } catch {
+      setStravaSyncMsg("Não consegui sincronizar agora.");
+    } finally {
+      setStravaSyncing(false);
+      setTimeout(() => setStravaSyncMsg(""), 4000);
+    }
+  }
+
   return (
     <div className="max-w-md mx-auto pb-28 relative min-h-screen">
       <div
@@ -246,9 +280,21 @@ export default function JourneyClient({
           </button>
         )}
 
-        <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5 flex items-center gap-1.5 mt-6">
-          <MapPin size={14} color={journey.theme_a} /> Histórico
+        <div className="flex items-center justify-between mb-2.5 mt-6">
+          <div className="text-xs font-extrabold uppercase tracking-wide text-muted flex items-center gap-1.5">
+            <MapPin size={14} color={journey.theme_a} /> Histórico
+          </div>
+          <button
+            onClick={handleStravaRefresh}
+            disabled={stravaSyncing}
+            className="flex items-center gap-1 text-[11px] font-bold shrink-0"
+            style={{ color: journey.theme_a }}
+            title="Sincronizar corridas do Strava pra essa jornada"
+          >
+            <RefreshCw size={12} className={stravaSyncing ? "animate-spin" : ""} /> Strava
+          </button>
         </div>
+        {stravaSyncMsg && <div className="text-[11px] text-muted font-semibold mb-2 -mt-1">{stravaSyncMsg}</div>}
         <div className="bg-surface rounded-2xl p-1.5">
           {runs.slice(0, 10).map((r, i) => {
             const member = members.find((m) => m.id === r.user_id)!;
