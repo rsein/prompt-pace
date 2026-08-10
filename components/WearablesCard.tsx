@@ -68,7 +68,10 @@ export default function WearablesCard({
       if (!res.ok || data.error) {
         setMsg(data.error || "Não consegui sincronizar agora.");
       } else {
-        setMsg(data.imported > 0 ? `${data.imported} corrida(s) importada(s) do Strava.` : "Tudo certo — nenhuma corrida nova pra importar.");
+        const parts = [];
+        if (data.imported > 0) parts.push(`${data.imported} corrida(s) importada(s)`);
+        if (data.skippedDuplicates > 0) parts.push(`${data.skippedDuplicates} ignorada(s) por já existir`);
+        setMsg(parts.length > 0 ? `${parts.join(", ")} do Strava.` : "Tudo certo — nenhuma corrida nova pra importar.");
         onSynced();
       }
       loadStatus();

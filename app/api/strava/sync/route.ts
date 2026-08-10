@@ -69,12 +69,35 @@ export async function POST(request: Request) {
     const activities: StravaActivity[] = await res.json();
     const runs = activities.filter((a) => a.type === "Run" || a.sport_type === "Run" || a.sport_type === "TrailRun");
 
+    // Pega as corridas que já existem (manual ou por foto) pra não duplicar com o que o Strava também tem
+    const { data: existingRuns } = await admin
+      .from("runs")
+      .select("km, created_at")
+      .eq("journey_id", journeyId)
+      .eq("user_id", user.id)
+      .neq("source", "strava");
+
+    function looksLikeDuplicate(activityKm: number, activityDate: Date) {
+      return (existingRuns ?? []).some((r) => {
+        const sameDay = new Date(r.created_at).toDateString() === activityDate.toDateString();
+        const kmDiff = Math.abs(Number(r.km) - activityKm);
+        return sameDay && kmDiff < 0.3;
+      });
+    }
+
     let imported = 0;
+    let skippedDuplicates = 0;
     for (const activity of runs) {
+      const activityKm = activity.distance / 1000;
+      if (looksLikeDuplicate(activityKm, new Date(activity.start_date))) {
+        skippedDuplicates++;
+        continue;
+      }
+
       const { error: insertError } = await admin.from("runs").insert({
         journey_id: journeyId,
         user_id: user.id,
-        km: activity.distance / 1000,
+        km: activityKm,
         time_sec: activity.moving_time,
         bpm: activity.average_heartrate ? Math.round(activity.average_heartrate) : null,
         calories: activity.calories ? Math.round(activity.calories) : null,
@@ -92,7 +115,7 @@ export async function POST(request: Request) {
       .eq("user_id", user.id)
       .eq("provider", "strava");
 
-    return NextResponse.json({ imported });
+    return NextResponse.json({ imported, skippedDuplicates });
   } catch (e) {
     console.error("Erro inesperado ao sincronizar Strava:", e);
     return NextResponse.json({ error: "Não consegui sincronizar agora. Tenta de novo." }, { status: 500 });
