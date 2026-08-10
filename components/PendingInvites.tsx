@@ -17,6 +17,7 @@ export default function PendingInvites({ userId }: { userId: string }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [importPrompt, setImportPrompt] = useState<{ journeyId: string; title: string } | null>(null);
   const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
 
   async function load() {
     const { data } = await supabase
@@ -70,15 +71,24 @@ export default function PendingInvites({ userId }: { userId: string }) {
       setImporting(true);
       const sinceDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
       try {
-        await fetch("/api/strava/import-for-journey", {
+        const res = await fetch("/api/strava/import-for-journey", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ journeyId: importPrompt.journeyId, sinceDate }),
         });
+        const data = await res.json();
+        setImportResult(
+          !res.ok || data.error
+            ? data.error || "Não consegui importar agora."
+            : data.imported > 0
+              ? `${data.imported} corrida(s) importada(s)!`
+              : "Nenhuma corrida do Strava encontrada nesse período."
+        );
       } catch {
-        // sem problema, dá pra sincronizar depois pelo perfil
+        setImportResult("Não consegui importar agora.");
       }
       setImporting(false);
+      return;
     }
     setImportPrompt(null);
     router.refresh();
@@ -87,28 +97,46 @@ export default function PendingInvites({ userId }: { userId: string }) {
   if (importPrompt) {
     return (
       <div className="bg-surface rounded-2xl p-4 mb-5 text-center">
-        <div className="text-sm font-bold mb-1.5">Você entrou em {importPrompt.title}! 🎉</div>
-        <div className="text-xs text-muted mb-3.5 leading-relaxed">
-          Quer importar as corridas que já fez esse mês pelo Strava, pra já contar no ranking?
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => handleImportChoice(true)}
-            disabled={importing}
-            className="flex-1 py-2.5 rounded-xl font-bold text-xs text-bg bg-gradient-to-r from-[#29F1D6] to-[#8B5CF6]"
-            style={{ opacity: importing ? 0.7 : 1 }}
-          >
-            {importing ? "Importando..." : "Importar"}
-          </button>
-          <button
-            onClick={() => handleImportChoice(false)}
-            disabled={importing}
-            className="flex-1 py-2.5 rounded-xl font-bold text-xs"
-            style={{ border: "1px solid rgba(255,255,255,0.12)" }}
-          >
-            Agora não
-          </button>
-        </div>
+        {importResult ? (
+          <>
+            <div className="text-sm font-bold mb-3.5">{importResult}</div>
+            <button
+              onClick={() => {
+                setImportPrompt(null);
+                setImportResult(null);
+                router.refresh();
+              }}
+              className="w-full py-2.5 rounded-xl font-bold text-xs text-bg bg-gradient-to-r from-[#29F1D6] to-[#8B5CF6]"
+            >
+              Fechar
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="text-sm font-bold mb-1.5">Você entrou em {importPrompt.title}! 🎉</div>
+            <div className="text-xs text-muted mb-3.5 leading-relaxed">
+              Quer importar as corridas que já fez esse mês pelo Strava, pra já contar no ranking?
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleImportChoice(true)}
+                disabled={importing}
+                className="flex-1 py-2.5 rounded-xl font-bold text-xs text-bg bg-gradient-to-r from-[#29F1D6] to-[#8B5CF6]"
+                style={{ opacity: importing ? 0.7 : 1 }}
+              >
+                {importing ? "Importando..." : "Importar"}
+              </button>
+              <button
+                onClick={() => handleImportChoice(false)}
+                disabled={importing}
+                className="flex-1 py-2.5 rounded-xl font-bold text-xs"
+                style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+              >
+                Agora não
+              </button>
+            </div>
+          </>
+        )}
       </div>
     );
   }

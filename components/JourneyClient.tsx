@@ -6,6 +6,7 @@ import { ChevronLeft, Plus, Sparkles, MapPin, Share2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fmtPace, fmtTime, fmtDate, isThisMonth, isThisYear, currentMonthLabel, currentYearLabel, periodProgress } from "@/lib/utils";
 import Avatar from "./Avatar";
+import StravaTag from "./StravaTag";
 import Podium from "./Podium";
 import RegisterRunModal from "./RegisterRunModal";
 import EditRunModal from "./EditRunModal";
@@ -262,7 +263,10 @@ export default function JourneyClient({
               >
                 <Avatar profile={member} size={28} />
                 <div className="flex-1">
-                  <div className="text-sm font-semibold">{member.name}</div>
+                  <div className="text-sm font-semibold flex items-center gap-1.5">
+                    {member.name}
+                    {r.source === "strava" && <StravaTag />}
+                  </div>
                   <div className="text-[11px] text-muted">
                     {fmtPace(r.time_sec, Number(r.km))} /km · {fmtTime(r.time_sec)} min
                     {r.bpm ? ` · ${r.bpm} bpm` : ""}
@@ -299,7 +303,10 @@ export default function JourneyClient({
                     style={{ borderBottom: i < Math.min(myRuns.length, 5) - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
                   >
                     <div className="flex-1">
-                      <div className="text-sm font-bold">{fmtPace(r.time_sec, Number(r.km))} /km · {fmtTime(r.time_sec)} min</div>
+                      <div className="text-sm font-bold flex items-center gap-1.5">
+                      {fmtPace(r.time_sec, Number(r.km))} /km · {fmtTime(r.time_sec)} min
+                      {r.source === "strava" && <StravaTag />}
+                    </div>
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>

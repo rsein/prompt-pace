@@ -16,6 +16,7 @@ export default function JoinClient({
   const [error, setError] = useState("");
   const [importPrompt, setImportPrompt] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
 
   async function handleJoin() {
     setJoining(true);
@@ -61,22 +62,31 @@ export default function JoinClient({
   }
 
   async function handleImportChoice(importFromStrava: boolean) {
-    if (importFromStrava) {
-      setImporting(true);
-      const sinceDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-      try {
-        await fetch("/api/strava/import-for-journey", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ journeyId: journey.id, sinceDate }),
-        });
-      } catch {
-        // sem problema, dá pra sincronizar depois pelo perfil
-      }
-      setImporting(false);
+    if (!importFromStrava) {
+      router.push(`/journey/${journey.id}`);
+      router.refresh();
+      return;
     }
-    router.push(`/journey/${journey.id}`);
-    router.refresh();
+    setImporting(true);
+    const sinceDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+    try {
+      const res = await fetch("/api/strava/import-for-journey", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ journeyId: journey.id, sinceDate }),
+      });
+      const data = await res.json();
+      setImportResult(
+        !res.ok || data.error
+          ? data.error || "Não consegui importar agora."
+          : data.imported > 0
+            ? `${data.imported} corrida(s) importada(s)!`
+            : "Nenhuma corrida do Strava encontrada nesse período."
+      );
+    } catch {
+      setImportResult("Não consegui importar agora.");
+    }
+    setImporting(false);
   }
 
   return (
@@ -109,25 +119,43 @@ export default function JoinClient({
         ) : (
           <>
             <div className="font-display text-3xl mb-1.5">Você entrou! 🎉</div>
-            <div className="text-sm text-muted mb-8 leading-relaxed">
-              Quer importar as corridas que já fez esse mês pelo Strava, pra já contar no ranking?
-            </div>
-            <button
-              onClick={() => handleImportChoice(true)}
-              disabled={importing}
-              className="w-full py-3.5 rounded-2xl font-extrabold text-sm text-bg mb-2.5"
-              style={{ background: `linear-gradient(90deg, ${journey.theme_a}, ${journey.theme_b})`, opacity: importing ? 0.7 : 1 }}
-            >
-              {importing ? "Importando..." : "Importar do Strava"}
-            </button>
-            <button
-              onClick={() => handleImportChoice(false)}
-              disabled={importing}
-              className="w-full py-3.5 rounded-2xl font-bold text-sm"
-              style={{ border: "1px solid rgba(255,255,255,0.15)" }}
-            >
-              Começar do zero
-            </button>
+            {importResult ? (
+              <>
+                <div className="text-sm text-muted mb-8 leading-relaxed">{importResult}</div>
+                <button
+                  onClick={() => {
+                    router.push(`/journey/${journey.id}`);
+                    router.refresh();
+                  }}
+                  className="w-full py-3.5 rounded-2xl font-extrabold text-sm text-bg"
+                  style={{ background: `linear-gradient(90deg, ${journey.theme_a}, ${journey.theme_b})` }}
+                >
+                  Ver jornada
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="text-sm text-muted mb-8 leading-relaxed">
+                  Quer importar as corridas que já fez esse mês pelo Strava, pra já contar no ranking?
+                </div>
+                <button
+                  onClick={() => handleImportChoice(true)}
+                  disabled={importing}
+                  className="w-full py-3.5 rounded-2xl font-extrabold text-sm text-bg mb-2.5"
+                  style={{ background: `linear-gradient(90deg, ${journey.theme_a}, ${journey.theme_b})`, opacity: importing ? 0.7 : 1 }}
+                >
+                  {importing ? "Importando..." : "Importar do Strava"}
+                </button>
+                <button
+                  onClick={() => handleImportChoice(false)}
+                  disabled={importing}
+                  className="w-full py-3.5 rounded-2xl font-bold text-sm"
+                  style={{ border: "1px solid rgba(255,255,255,0.15)" }}
+                >
+                  Começar do zero
+                </button>
+              </>
+            )}
           </>
         )}
       </div>

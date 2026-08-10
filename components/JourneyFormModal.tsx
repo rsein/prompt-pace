@@ -37,6 +37,7 @@ export default function JourneyFormModal({
   const [error, setError] = useState("");
   const [importPrompt, setImportPrompt] = useState<{ journeyId: string; sinceDate: string } | null>(null);
   const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
 
   // Participantes: busca por nome + sugestões de quem já correu com você antes
   const [suggestions, setSuggestions] = useState<Profile[]>([]);
@@ -208,20 +209,37 @@ export default function JourneyFormModal({
 
   async function handleImportChoice(importFromStrava: boolean) {
     if (!importPrompt) return;
-    if (importFromStrava) {
-      setImporting(true);
-      try {
-        await fetch("/api/strava/import-for-journey", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(importPrompt),
-        });
-      } catch {
-        // se falhar, a pessoa ainda pode sincronizar manual depois pelo perfil
-      }
-      setImporting(false);
+    if (!importFromStrava) {
+      setImportPrompt(null);
+      onSaved();
+      onClose();
+      return;
     }
+
+    setImporting(true);
+    try {
+      const res = await fetch("/api/strava/import-for-journey", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(importPrompt),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setImportResult(data.error || "Não consegui importar agora. Você pode tentar de novo depois, pelo Perfil.");
+      } else if (data.imported > 0) {
+        setImportResult(`${data.imported} corrida(s) importada(s) com sucesso!`);
+      } else {
+        setImportResult("Não achei nenhuma corrida do Strava nesse período pra importar.");
+      }
+    } catch {
+      setImportResult("Não consegui importar agora. Você pode tentar de novo depois, pelo Perfil.");
+    }
+    setImporting(false);
+  }
+
+  function finishAfterImport() {
     setImportPrompt(null);
+    setImportResult(null);
     onSaved();
     onClose();
   }
@@ -230,27 +248,42 @@ export default function JourneyFormModal({
     return (
       <div className="fixed inset-0 bg-black/70 flex items-end z-40">
         <div className="w-full max-w-md mx-auto bg-surface2 rounded-t-3xl p-6 text-center">
-          <div className="font-display text-2xl mb-2">Jornada criada! 🎉</div>
-          <div className="text-sm text-muted mb-6 leading-relaxed">
-            Você já corre com o Strava conectado. Quer importar as corridas que já fez desde{" "}
-            {monthly && !annual ? "o início deste mês" : "1º de janeiro"} pra essa jornada, ou prefere começar do zero?
-          </div>
-          <button
-            onClick={() => handleImportChoice(true)}
-            disabled={importing}
-            className="w-full py-3.5 rounded-2xl font-extrabold text-sm text-bg bg-gradient-to-r from-[#29F1D6] to-[#8B5CF6] mb-2.5"
-            style={{ opacity: importing ? 0.7 : 1 }}
-          >
-            {importing ? "Importando..." : "Importar do Strava"}
-          </button>
-          <button
-            onClick={() => handleImportChoice(false)}
-            disabled={importing}
-            className="w-full py-3.5 rounded-2xl font-bold text-sm"
-            style={{ border: "1px solid rgba(255,255,255,0.12)" }}
-          >
-            Começar do zero
-          </button>
+          {importResult ? (
+            <>
+              <div className="font-display text-2xl mb-3">Pronto</div>
+              <div className="text-sm text-muted mb-6 leading-relaxed">{importResult}</div>
+              <button
+                onClick={finishAfterImport}
+                className="w-full py-3.5 rounded-2xl font-extrabold text-sm text-bg bg-gradient-to-r from-[#29F1D6] to-[#8B5CF6]"
+              >
+                Ver jornada
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="font-display text-2xl mb-2">Jornada criada! 🎉</div>
+              <div className="text-sm text-muted mb-6 leading-relaxed">
+                Você já corre com o Strava conectado. Quer importar as corridas que já fez desde{" "}
+                {monthly && !annual ? "o início deste mês" : "1º de janeiro"} pra essa jornada, ou prefere começar do zero?
+              </div>
+              <button
+                onClick={() => handleImportChoice(true)}
+                disabled={importing}
+                className="w-full py-3.5 rounded-2xl font-extrabold text-sm text-bg bg-gradient-to-r from-[#29F1D6] to-[#8B5CF6] mb-2.5"
+                style={{ opacity: importing ? 0.7 : 1 }}
+              >
+                {importing ? "Importando..." : "Importar do Strava"}
+              </button>
+              <button
+                onClick={() => handleImportChoice(false)}
+                disabled={importing}
+                className="w-full py-3.5 rounded-2xl font-bold text-sm"
+                style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+              >
+                Começar do zero
+              </button>
+            </>
+          )}
         </div>
       </div>
     );

@@ -1,24 +1,51 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type PersonalRun = { km: number; time_sec: number; created_at: string };
+export type PersonalRun = {
+  km: number;
+  time_sec: number;
+  created_at: string;
+  source: "strava" | "manual";
+  key: string; // external_id (strava) ou id da linha em runs (manual) — usado pra poder excluir
+};
 
-// Junta o arquivo do Strava (nunca duplicado) com as corridas manuais/por foto, removendo
-// manuais repetidas (mesmo dia + km parecido) que porventura estejam espelhadas em mais de uma jornada.
+// Junta o arquivo do Strava (nunca duplicado) com as corridas manuais/por foto, removendo:
+// 1) manuais repetidas entre si (mesma corrida espelhada em mais de uma jornada)
+// 2) manuais que já existem no Strava também (ex: você digitou a corrida antes de conectar o Strava,
+//    e agora ela também apareceu por lá — sem isso, contava dobrado)
 export async function getPersonalRuns(supabase: SupabaseClient, userId: string): Promise<PersonalRun[]> {
   const [{ data: stravaHistory }, { data: manualRunsRaw }] = await Promise.all([
-    supabase.from("strava_history").select("km, time_sec, created_at").eq("user_id", userId),
-    supabase.from("runs").select("km, time_sec, created_at").eq("user_id", userId).neq("source", "strava"),
+    supabase.from("strava_history").select("external_id, km, time_sec, created_at").eq("user_id", userId),
+    supabase.from("runs").select("id, km, time_sec, created_at").eq("user_id", userId).neq("source", "strava"),
   ]);
 
-  const seen = new Set<string>();
-  const dedupedManual = (manualRunsRaw ?? []).filter((r: PersonalRun) => {
-    const key = `${new Date(r.created_at).toDateString()}_${Number(r.km).toFixed(1)}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  const strava: PersonalRun[] = (stravaHistory ?? []).map((r: any) => ({
+    km: r.km,
+    time_sec: r.time_sec,
+    created_at: r.created_at,
+    source: "strava" as const,
+    key: r.external_id,
+  }));
 
-  return [...(stravaHistory ?? []), ...dedupedManual] as PersonalRun[];
+  function matchesExisting(list: { km: number; time_sec: number; created_at: string }[], km: number, createdAt: string) {
+    return list.some((r) => {
+      const sameDay = new Date(r.created_at).toDateString() === new Date(createdAt).toDateString();
+      const kmDiff = Math.abs(Number(r.km) - km);
+      return sameDay && kmDiff < 0.3;
+    });
+  }
+
+  const seenManual: { km: number; time_sec: number; created_at: string }[] = [];
+  const dedupedManual: PersonalRun[] = [];
+  for (const r of manualRunsRaw ?? []) {
+    // já existe uma corrida do Strava bem parecida no mesmo dia? não conta essa manual de novo
+    if (matchesExisting(strava, Number(r.km), r.created_at)) continue;
+    // já contei uma manual bem parecida nessa mesma passada (duplicada entre jornadas)? também não conta de novo
+    if (matchesExisting(seenManual, Number(r.km), r.created_at)) continue;
+    seenManual.push(r);
+    dedupedManual.push({ km: r.km, time_sec: r.time_sec, created_at: r.created_at, source: "manual", key: r.id });
+  }
+
+  return [...strava, ...dedupedManual];
 }
 
 export function computeStats(runsList: PersonalRun[]) {
