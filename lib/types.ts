@@ -11,6 +11,8 @@ export type Profile = {
   phone?: string | null;
 };
 
+
+
 export type Journey = {
   id: string;
   title: string;
@@ -24,6 +26,7 @@ export type Journey = {
   period_annual: boolean;
   monthly_goal_km: number | null;
   annual_goal_km: number | null;
+  narrator_style: string;
 };
 
 export type Run = {

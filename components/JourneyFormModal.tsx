@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Search, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { NARRATOR_PERSONAS, NARRATOR_STYLE_KEYS, type NarratorStyleKey } from "@/lib/narratorPersonas";
 import type { Journey, Profile } from "@/lib/types";
 
 const THEME_PRESETS = [
@@ -31,6 +32,7 @@ export default function JourneyFormModal({
   const [annual, setAnnual] = useState(journey?.period_annual ?? false);
   const [monthlyGoal, setMonthlyGoal] = useState(journey?.monthly_goal_km ? String(journey.monthly_goal_km) : "");
   const [annualGoal, setAnnualGoal] = useState(journey?.annual_goal_km ? String(journey.annual_goal_km) : "");
+  const [narratorStyle, setNarratorStyle] = useState<NarratorStyleKey>((journey?.narrator_style as NarratorStyleKey) ?? "engracado");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -116,6 +118,7 @@ export default function JourneyFormModal({
       period_annual: annual,
       monthly_goal_km: monthly ? parseFloat(monthlyGoal.replace(",", ".")) : null,
       annual_goal_km: annual ? parseFloat(annualGoal.replace(",", ".")) : null,
+      narrator_style: narratorStyle,
     };
 
     if (isEdit) {
@@ -224,6 +227,33 @@ export default function JourneyFormModal({
         </div>
         <div className="text-[11px] text-muted mb-4 leading-relaxed">
           A meta mensal zera todo mês (sem perder o histórico). Se marcar os dois, a jornada mostra os dois rankings.
+        </div>
+
+        <label className="text-xs font-bold text-muted uppercase tracking-wide">Estilo do narrador</label>
+        <div className="grid grid-cols-3 gap-1.5 mt-2 mb-2">
+          {NARRATOR_STYLE_KEYS.map((key) => {
+            const persona = NARRATOR_PERSONAS[key];
+            const isSelected = narratorStyle === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setNarratorStyle(key)}
+                className="py-2.5 px-1.5 rounded-xl text-[11px] font-bold border flex flex-col items-center gap-1"
+                style={{
+                  background: isSelected ? "#29F1D622" : "rgba(255,255,255,0.05)",
+                  borderColor: isSelected ? "#29F1D6" : "transparent",
+                  color: isSelected ? "#29F1D6" : "#F4F6FF",
+                }}
+              >
+                <span className="text-base">{persona.emoji}</span>
+                {persona.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="text-[11px] text-muted mb-5 leading-relaxed">
+          Define o tom dos comentários do narrador nessa jornada — bom pra combinar com o grupo (trabalho, igreja, amigos...).
         </div>
 
         {monthly && (

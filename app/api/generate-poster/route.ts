@@ -24,6 +24,45 @@ const POSITION_MOODS = [
   "expressão real de exaustão, suando, boca aberta ofegante, quase andando de tão cansado",
 ];
 
+// Converte a cor (hex) do perfil de cada um num nome de cor em português, pra usar como detalhe no look
+function colorName(hex: string): string {
+  const known: Record<string, string> = {
+    "#29F1D6": "turquesa/ciano",
+    "#8B5CF6": "roxo",
+    "#FFC145": "amarelo dourado",
+    "#FF6B9D": "rosa",
+    "#5CFF8F": "verde",
+    "#FF7A5C": "laranja avermelhado",
+  };
+  if (known[hex.toUpperCase()]) return known[hex.toUpperCase()];
+
+  // fallback simples: converte o hex pra RGB e escolhe o nome mais próximo
+  const r = parseInt(hex.slice(1, 3), 16) || 0;
+  const g = parseInt(hex.slice(3, 5), 16) || 0;
+  const b = parseInt(hex.slice(5, 7), 16) || 0;
+  const options: [string, [number, number, number]][] = [
+    ["vermelho", [255, 0, 0]],
+    ["laranja", [255, 140, 0]],
+    ["amarelo", [255, 220, 0]],
+    ["verde", [0, 200, 80]],
+    ["azul", [0, 120, 255]],
+    ["roxo", [140, 60, 220]],
+    ["rosa", [255, 100, 180]],
+    ["ciano", [0, 220, 220]],
+  ];
+  let best = options[0];
+  let bestDist = Infinity;
+  for (const opt of options) {
+    const [, [or, og, ob]] = opt;
+    const dist = (r - or) ** 2 + (g - og) ** 2 + (b - ob) ** 2;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = opt;
+    }
+  }
+  return best[0];
+}
+
 type RankingMember = {
   id: string;
   name: string;
@@ -32,6 +71,8 @@ type RankingMember = {
   gender: string | null;
   ethnicity?: string | null;
   age?: number | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
   km: number;
 };
 
@@ -118,20 +159,28 @@ export async function POST(request: Request) {
 
   const peopleDescription = top
     .map((m, i) => {
-      const hasPhoto = referenceImages.some((r) => r.name === m.name);
-      const genderNote = m.gender && GENDER_LABEL[m.gender] ? ` A pessoa é do ${GENDER_LABEL[m.gender]} — mantenha esse gênero exatamente, não troque.` : "";
+      const refIndex = referenceImages.findIndex((r) => r.name === m.name);
+      const hasPhoto = refIndex !== -1;
+      const genderNote = m.gender && GENDER_LABEL[m.gender] ? ` É do ${GENDER_LABEL[m.gender]} — mantenha esse gênero exatamente, nunca troque.` : "";
       const ethnicityNote = m.ethnicity && m.ethnicity !== "Prefiro não dizer" ? ` Etnia/tom de pele: ${m.ethnicity}.` : "";
       const ageNote = m.age ? ` Aparenta aproximadamente ${m.age} anos.` : "";
-      const base = `${POSITION_LABELS[i]}: pessoa chamada "${m.name}", ${POSITION_MOODS[i]}.${genderNote}${ethnicityNote}${ageNote} Veste roupa de corrida (camiseta esportiva de manga curta ou regata + shorts/bermuda de corrida + tênis de corrida) — NUNCA calça comprida nem roupa do dia a dia. A camiseta tem o nome "${m.name}" estampado grande e bem legível no peito, como uma camiseta personalizada de corrida de rua.`;
+      const bodyNote = m.height_cm && m.weight_kg ? ` Porte físico compatível com ${m.height_cm}cm e ${m.weight_kg}kg (nem mais magro nem mais robusto que isso).` : "";
+      const colorNote = ` Detalhe de cor ${colorName(m.color)} em algum item do look (tênis, pulseira ou faixa).`;
+      const base = `${POSITION_LABELS[i]}: pessoa chamada "${m.name}", ${POSITION_MOODS[i]}.${genderNote}${ethnicityNote}${ageNote}${bodyNote}${colorNote} Veste roupa de corrida (camiseta esportiva de manga curta ou regata + shorts/bermuda de corrida + tênis de corrida) — NUNCA calça comprida nem roupa do dia a dia. A camiseta tem o nome "${m.name}" estampado grande e bem legível no peito, como uma camiseta personalizada de corrida de rua.`;
       return hasPhoto
-        ? `${base} Baseie o rosto REALISTICAMENTE na foto de referência dessa mesma pessoa — mantenha a semelhança física real (rosto, cabelo, barba), sem estilizar como desenho, como se fosse uma foto composta de verdade.`
-        : `${base} Essa pessoa não enviou foto — represente como um(a) corredor(a) realista genérico, respeitando as características acima.`;
+        ? `${base} IMPORTANTE — FIDELIDADE DO ROSTO: a imagem de referência anexada NÚMERO ${refIndex + 1} (das ${referenceImages.length} anexadas, contando da primeira) é uma FOTO REAL do rosto desta pessoa específica. Use exatamente os traços faciais dessa foto de referência número ${refIndex + 1} — formato do rosto, olhos, nariz, boca, cabelo, barba (se houver) — sem estilizar, sem trocar por outra pessoa, sem misturar com os traços de nenhuma outra referência anexada. O rosto final tem que ser reconhecível como sendo o da pessoa dessa foto específica.`
+        : `${base} Essa pessoa não enviou foto de perfil — represente como um(a) corredor(a) realista genérico, respeitando todas as características acima.`;
     })
-    .join("\n");
+    .join("\n\n");
+
+  const refCountNote =
+    referenceImages.length > 0
+      ? `Foram anexadas ${referenceImages.length} foto(s) de referência de rosto nesta requisição, na ordem descrita abaixo pra cada personagem correspondente.\n\n`
+      : "";
 
   const prompt = `Crie uma cena FOTORREALISTA de pessoas correndo, estilo still de filme de ação/aventura hollywoodiano — mas com um tom cômico e caloroso por baixo do drama exagerado. Iluminação cinematográfica intensa, cores saturadas, alto contraste, textura de foto real (não ilustração, não desenho, não cartoon).
 
-Cenário: ${scene}
+${refCountNote}Cenário: ${scene}
 
 Personagens correndo (da esquerda pra direita: 2º lugar mais atrás à esquerda, 1º lugar na frente ao centro, 3º lugar mais atrás à direita):
 ${peopleDescription}

@@ -17,6 +17,12 @@ export function periodProgress(periodType: "monthly" | "annual") {
     daysLeft: Math.max(0, totalDays - elapsedDays),
   };
 }
+export function fmtDate(dateStr: string) {
+  const d = new Date(dateStr);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}`;
+}
 
 export function initials(name: string) {
   return name.slice(0, 2).toUpperCase();

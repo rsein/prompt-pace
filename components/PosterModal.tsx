@@ -190,6 +190,8 @@ export default function PosterModal({
             gender: m.gender ?? null,
             ethnicity: m.ethnicity ?? null,
             age: m.age ?? null,
+            height_cm: m.height_cm ?? null,
+            weight_kg: m.weight_kg ?? null,
             km: m.km,
           })),
         }),

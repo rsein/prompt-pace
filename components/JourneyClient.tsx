@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Plus, Sparkles, MapPin, Share2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { fmtPace, fmtTime, isThisMonth, isThisYear, currentMonthLabel, currentYearLabel, periodProgress } from "@/lib/utils";
+import { fmtPace, fmtTime, fmtDate, isThisMonth, isThisYear, currentMonthLabel, currentYearLabel, periodProgress } from "@/lib/utils";
 import Avatar from "./Avatar";
 import Podium from "./Podium";
 import RegisterRunModal from "./RegisterRunModal";
@@ -110,6 +110,7 @@ export default function JourneyClient({
           totalKm: total.toFixed(1),
           daysLeft: timeProgress.daysLeft,
           previousComment: aiComment || undefined,
+          narratorStyle: journey.narrator_style,
         }),
       });
       const data = await res.json();
@@ -268,7 +269,10 @@ export default function JourneyClient({
                     {r.calories ? ` · ${r.calories} kcal` : ""}
                   </div>
                 </div>
-                <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>
+                  <div className="text-[10px] text-muted font-semibold">{fmtDate(r.created_at)}</div>
+                </div>
               </button>
             );
           })}
@@ -297,7 +301,10 @@ export default function JourneyClient({
                     <div className="flex-1">
                       <div className="text-sm font-bold">{fmtPace(r.time_sec, Number(r.km))} /km · {fmtTime(r.time_sec)} min</div>
                     </div>
-                    <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>
+                      <div className="text-[10px] text-muted font-semibold">{fmtDate(r.created_at)}</div>
+                    </div>
                   </button>
                 ))}
               </div>

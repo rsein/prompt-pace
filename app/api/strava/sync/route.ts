@@ -69,19 +69,22 @@ export async function POST(request: Request) {
     const activities: StravaActivity[] = await res.json();
     const runs = activities.filter((a) => a.type === "Run" || a.sport_type === "Run" || a.sport_type === "TrailRun");
 
-    // Pega as corridas que já existem (manual ou por foto) pra não duplicar com o que o Strava também tem
+    // Pega as corridas que já existem (manual ou por foto) pra não duplicar com o que o Strava também tem.
+    // Só considera duplicata se bater tudo: mesmo dia, distância bem parecida E duração bem parecida —
+    // assim uma corrida nova que só coincide na distância (ex: sempre corre 5km) não é bloqueada à toa.
     const { data: existingRuns } = await admin
       .from("runs")
-      .select("km, created_at")
+      .select("km, time_sec, created_at")
       .eq("journey_id", journeyId)
       .eq("user_id", user.id)
       .neq("source", "strava");
 
-    function looksLikeDuplicate(activityKm: number, activityDate: Date) {
+    function looksLikeDuplicate(activityKm: number, activityTimeSec: number, activityDate: Date) {
       return (existingRuns ?? []).some((r) => {
         const sameDay = new Date(r.created_at).toDateString() === activityDate.toDateString();
         const kmDiff = Math.abs(Number(r.km) - activityKm);
-        return sameDay && kmDiff < 0.3;
+        const timeDiff = Math.abs(r.time_sec - activityTimeSec);
+        return sameDay && kmDiff < 0.15 && timeDiff < 120;
       });
     }
 
@@ -89,7 +92,7 @@ export async function POST(request: Request) {
     let skippedDuplicates = 0;
     for (const activity of runs) {
       const activityKm = activity.distance / 1000;
-      if (looksLikeDuplicate(activityKm, new Date(activity.start_date))) {
+      if (looksLikeDuplicate(activityKm, activity.moving_time, new Date(activity.start_date))) {
         skippedDuplicates++;
         continue;
       }
