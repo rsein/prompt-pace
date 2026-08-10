@@ -66,7 +66,13 @@ export default async function HomePage() {
     return best === null || pace < best ? pace : best;
   }, null);
 
-  const myStats = { monthlyKm: myMonthlyKm, annualKm: myAnnualKm, bestPaceSec, avgPaceSec };
+  const lastRunAt = runsList.reduce<string | null>((latest, r) => {
+    if (!latest || new Date(r.created_at) > new Date(latest)) return r.created_at;
+    return latest;
+  }, null);
+  const hoursSinceLastRun = lastRunAt ? (now.getTime() - new Date(lastRunAt).getTime()) / 3600000 : null;
+
+  const myStats = { monthlyKm: myMonthlyKm, annualKm: myAnnualKm, bestPaceSec, avgPaceSec, hoursSinceLastRun };
 
   return <HomeClient userId={user!.id} profile={profile} journeys={journeysWithStats} myStats={myStats} />;
 }

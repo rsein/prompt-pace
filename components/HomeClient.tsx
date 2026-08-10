@@ -30,6 +30,7 @@ type MyStats = {
   annualKm: number;
   bestPaceSec: number | null;
   avgPaceSec: number | null;
+  hoursSinceLastRun: number | null;
 };
 
 export default function HomeClient({
@@ -59,7 +60,9 @@ export default function HomeClient({
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const res = await fetch(`/api/weather?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
+          const hoursParam =
+            myStats.hoursSinceLastRun !== null ? `&hoursSinceLastRun=${myStats.hoursSinceLastRun.toFixed(1)}` : "";
+          const res = await fetch(`/api/weather?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}${hoursParam}`);
           if (res.ok) setWeather(await res.json());
         } catch {
           // sem clima, sem problema — a tela funciona igual sem essa informação
