@@ -96,6 +96,15 @@ export default function WearablesCard({
 
   return (
     <div className="space-y-2.5">
+      {msg && (
+        <div
+          className="text-xs font-semibold px-3.5 py-2.5 rounded-xl"
+          style={{ background: `${themeA}1A`, color: themeA, border: `1px solid ${themeA}44` }}
+        >
+          {msg}
+        </div>
+      )}
+
       {/* Strava */}
       <div className="bg-surface rounded-2xl p-4">
         <div className="flex items-center justify-between">
@@ -161,8 +170,6 @@ export default function WearablesCard({
 
       {/* Samsung Health */}
       <ComingSoonProvider name={PROVIDER_LABEL.samsung} note="O acesso à API da Samsung Health depende de aprovação empresarial da Samsung. Dica: se você já sincroniza a Samsung Health com o Strava (pelo próprio app da Samsung), suas corridas já aparecem aqui ao conectar o Strava acima." />
-
-      {msg && <div className="text-xs text-muted font-semibold px-1">{msg}</div>}
     </div>
   );
 }
