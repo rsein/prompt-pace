@@ -26,11 +26,19 @@ export async function getPersonalRuns(supabase: SupabaseClient, userId: string):
     key: r.external_id,
   }));
 
-  function matchesExisting(list: { km: number; time_sec: number; created_at: string }[], km: number, createdAt: string) {
+  function matchesExisting(
+    list: { km: number; time_sec: number; created_at: string }[],
+    km: number,
+    timeSec: number,
+    createdAt: string
+  ) {
     return list.some((r) => {
       const sameDay = new Date(r.created_at).toDateString() === new Date(createdAt).toDateString();
       const kmDiff = Math.abs(Number(r.km) - km);
-      return sameDay && kmDiff < 0.3;
+      const timeDiff = Math.abs(r.time_sec - timeSec);
+      // exige distância E duração parecidas — só km parecido não basta (duas corridas diferentes
+      // no mesmo dia podem ter distância parecida por coincidência, sem ser a mesma corrida)
+      return sameDay && kmDiff < 0.15 && timeDiff < 120;
     });
   }
 
@@ -38,9 +46,9 @@ export async function getPersonalRuns(supabase: SupabaseClient, userId: string):
   const dedupedManual: PersonalRun[] = [];
   for (const r of manualRunsRaw ?? []) {
     // já existe uma corrida do Strava bem parecida no mesmo dia? não conta essa manual de novo
-    if (matchesExisting(strava, Number(r.km), r.created_at)) continue;
+    if (matchesExisting(strava, Number(r.km), r.time_sec, r.created_at)) continue;
     // já contei uma manual bem parecida nessa mesma passada (duplicada entre jornadas)? também não conta de novo
-    if (matchesExisting(seenManual, Number(r.km), r.created_at)) continue;
+    if (matchesExisting(seenManual, Number(r.km), r.time_sec, r.created_at)) continue;
     seenManual.push(r);
     dedupedManual.push({ km: r.km, time_sec: r.time_sec, created_at: r.created_at, source: "manual", key: r.id });
   }
