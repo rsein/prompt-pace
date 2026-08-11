@@ -119,7 +119,7 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
-  let journeyId: string, ranking: RankingMember[], themeA: string, themeB: string, narratorComment: string;
+  let journeyId: string, ranking: RankingMember[], themeA: string, themeB: string, narratorComment: string, allMemberNames: string[];
   try {
     const body = await request.json();
     journeyId = body.journeyId;
@@ -127,6 +127,7 @@ export async function POST(request: Request) {
     themeA = body.themeA || "#29F1D6";
     themeB = body.themeB || "#8B5CF6";
     narratorComment = body.narratorComment || "";
+    allMemberNames = Array.isArray(body.allMemberNames) ? body.allMemberNames : [];
   } catch {
     return NextResponse.json({ error: "Requisição inválida" }, { status: 400 });
   }
@@ -178,9 +179,23 @@ export async function POST(request: Request) {
       ? `Foram anexadas ${referenceImages.length} foto(s) de referência de rosto nesta requisição, na ordem descrita abaixo pra cada personagem correspondente.\n\n`
       : "";
 
+  // Lista explícita de amarração referência→pessoa, repetida antes das descrições — isso ajuda o
+  // modelo a não trocar rostos entre as pessoas (problema comum quando há mais de uma foto anexada).
+  const referenceMappingList =
+    referenceImages.length > 0
+      ? `MAPEAMENTO OBRIGATÓRIO DE REFERÊNCIAS (leia com atenção antes de continuar):\n${referenceImages
+          .map((r, i) => `- Imagem de referência número ${i + 1} = rosto real de "${r.name}", e de mais ninguém.`)
+          .join("\n")}\nATENÇÃO: não troque rostos entre as pessoas. Cada personagem usa APENAS a referência numerada que corresponde ao nome dele, mesmo que outra referência pareça "combinar melhor" com a expressão da posição (por exemplo: não coloque o rosto de outra referência na pessoa em 1º lugar só porque ela está sorrindo — use a referência numerada certa, do nome certo, em cada posição, sempre).\n\n`
+      : "";
+
+  const groupContext =
+    allMemberNames.length > 0
+      ? `Contexto do grupo: essa jornada de corrida tem ${allMemberNames.length} participante(s) ao todo — ${allMemberNames.join(", ")}. A cena mostra só o pódio atual (top 3), mas é bom saber o grupo completo pro clima da ilustração.\n\n`
+      : "";
+
   const prompt = `Crie uma cena FOTORREALISTA de pessoas correndo, estilo still de filme de ação/aventura hollywoodiano — mas com um tom cômico e caloroso por baixo do drama exagerado. Iluminação cinematográfica intensa, cores saturadas, alto contraste, textura de foto real (não ilustração, não desenho, não cartoon).
 
-${refCountNote}Cenário: ${scene}
+${referenceMappingList}${groupContext}${refCountNote}Cenário: ${scene}
 
 Personagens correndo (da esquerda pra direita: 2º lugar mais atrás à esquerda, 1º lugar na frente ao centro, 3º lugar mais atrás à direita):
 ${peopleDescription}

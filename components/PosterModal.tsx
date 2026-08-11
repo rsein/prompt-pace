@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { X, Sparkles, Download, Share2, RefreshCw } from "lucide-react";
-import type { Journey, MemberTotal } from "@/lib/types";
+import type { Journey, MemberTotal, Profile } from "@/lib/types";
 
 const LOADING_MESSAGES = [
   "Aquecendo os personagens...",
@@ -18,11 +18,13 @@ const SLOGAN = "Prompt rápido. Pace nem tanto.";
 export default function PosterModal({
   journey,
   memberTotals,
+  allMembers,
   narratorComment,
   onClose,
 }: {
   journey: Journey;
   memberTotals: MemberTotal[];
+  allMembers: Profile[];
   narratorComment?: string;
   onClose: () => void;
 }) {
@@ -182,6 +184,7 @@ export default function PosterModal({
           themeA: journey.theme_a,
           themeB: journey.theme_b,
           narratorComment: narratorComment || "",
+          allMemberNames: allMembers.map((m) => m.name),
           ranking: memberTotals.slice(0, 3).map((m) => ({
             id: m.id,
             name: m.name,

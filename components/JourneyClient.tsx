@@ -114,6 +114,7 @@ export default function JourneyClient({
           daysLeft: timeProgress.daysLeft,
           previousComment: aiComment || undefined,
           narratorStyle: journey.narrator_style,
+          soloMode: members.length === 1,
         }),
       });
       const data = await res.json();
@@ -469,6 +470,7 @@ export default function JourneyClient({
         <PosterModal
           journey={journey}
           memberTotals={memberTotals.filter((m) => m.km > 0)}
+          allMembers={members}
           narratorComment={aiComment}
           onClose={() => setPosterOpen(false)}
         />
