@@ -11,6 +11,7 @@ import Podium from "./Podium";
 import RegisterRunModal from "./RegisterRunModal";
 import EditRunModal from "./EditRunModal";
 import PosterModal from "./PosterModal";
+import RunReactions, { type Reaction } from "./RunReactions";
 import type { Journey, Profile, Run } from "@/lib/types";
 
 export default function JourneyClient({
@@ -136,6 +137,26 @@ export default function JourneyClient({
 
   const me = memberTotals.find((m) => m.id === currentUserId);
   const monthRuns = useMemo(() => runs.filter((r) => isThisMonth(r.created_at)), [runs]);
+  const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
+
+  async function loadReactions(runIds: string[]) {
+    if (runIds.length === 0) {
+      setReactions({});
+      return;
+    }
+    const { data } = await supabase.from("run_reactions").select("*").in("run_id", runIds);
+    const grouped: Record<string, Reaction[]> = {};
+    (data ?? []).forEach((r: Reaction) => {
+      if (!grouped[r.run_id]) grouped[r.run_id] = [];
+      grouped[r.run_id].push(r);
+    });
+    setReactions(grouped);
+  }
+
+  useEffect(() => {
+    loadReactions(monthRuns.map((r) => r.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runs]);
 
   const previousMonthLabel = useMemo(() => {
     const d = new Date();
@@ -360,30 +381,46 @@ export default function JourneyClient({
             const member = members.find((m) => m.id === r.user_id)!;
             const isMine = r.user_id === currentUserId;
             return (
-              <button
+              <div
                 key={r.id}
-                onClick={() => isMine && setEditingRun(r)}
-                disabled={!isMine}
-                className="w-full flex items-center gap-3 px-2.5 py-2.5 text-left"
+                className="px-2.5 py-2.5"
                 style={{ borderBottom: i < Math.min(monthRuns.length, 10) - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
               >
-                <Avatar profile={member} size={28} />
-                <div className="flex-1">
-                  <div className="text-sm font-semibold flex items-center gap-1.5">
-                    {member.name}
-                    {r.source === "strava" && <StravaTag />}
+                <div
+                  role="button"
+                  tabIndex={isMine ? 0 : -1}
+                  onClick={() => isMine && setEditingRun(r)}
+                  className="w-full flex items-center gap-3 text-left"
+                >
+                  <Avatar profile={member} size={28} />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold flex items-center gap-1.5">
+                      {member.name}
+                      {r.source === "strava" && <StravaTag />}
+                    </div>
+                    <div className="text-[11px] text-muted">
+                      {fmtPace(r.time_sec, Number(r.km))} /km · {fmtTime(r.time_sec)} min
+                      {r.bpm ? ` · ${r.bpm} bpm` : ""}
+                      {r.calories ? ` · ${r.calories} kcal` : ""}
+                    </div>
                   </div>
-                  <div className="text-[11px] text-muted">
-                    {fmtPace(r.time_sec, Number(r.km))} /km · {fmtTime(r.time_sec)} min
-                    {r.bpm ? ` · ${r.bpm} bpm` : ""}
-                    {r.calories ? ` · ${r.calories} kcal` : ""}
+                  <div className="text-right shrink-0">
+                    <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>
+                    <div className="text-[10px] text-muted font-semibold">{fmtDate(r.created_at)}</div>
                   </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>
-                  <div className="text-[10px] text-muted font-semibold">{fmtDate(r.created_at)}</div>
+                <div className="mt-1.5 pl-[43px]">
+                  <RunReactions
+                    runId={r.id}
+                    ownerId={r.user_id}
+                    journeyId={journey.id}
+                    currentUserId={currentUserId}
+                    currentUserName={members.find((m) => m.id === currentUserId)?.name ?? ""}
+                    reactions={reactions[r.id] ?? []}
+                    onChange={() => loadReactions(monthRuns.map((rr) => rr.id))}
+                  />
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
