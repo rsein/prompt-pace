@@ -13,7 +13,28 @@ const LOADING_MESSAGES = [
 ];
 
 const MEDAL_COLORS = ["#FFC145", "#C7CEDD", "#CD8A5A"];
-const SLOGAN = "Prompt rápido. Pace nem tanto.";
+const SLOGAN_PART1 = "Mais que corrida. ";
+const SLOGAN_PART2 = "É conexão.";
+
+function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function loadImageSafe(src: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const el = new window.Image();
+    el.crossOrigin = "anonymous";
+    el.onload = () => resolve(el);
+    el.onerror = () => resolve(null);
+    el.src = src;
+  });
+}
 
 export default function PosterModal({
   journey,
@@ -38,8 +59,9 @@ export default function PosterModal({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const objectUrlRef = useRef<string | null>(null);
 
-  // Desenha a logo do app no topo e o placar do ranking no rodapé, por cima da ilustração gerada pela IA —
-  // e monta tudo já no formato Stories do Instagram (9:16), pra ficar prontinho pra postar.
+  // Desenha a logo (ícone + "PROMPT & PACE") no topo e um placar estiloso no rodapé, por cima da
+  // ilustração gerada pela IA — a IA só cuida da cena de ação; números, nomes e fotos são sempre
+  // desenhados por código, pra nunca sair errado. Formato final: Stories do Instagram (9:16).
   async function composite(imageUrl: string): Promise<Blob> {
     try {
       await document.fonts.load('700 60px "Bebas Neue"');
@@ -48,110 +70,193 @@ export default function PosterModal({
       // segue mesmo se a fonte não carregar a tempo — cai na fonte padrão do sistema
     }
 
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new window.Image();
-      el.crossOrigin = "anonymous";
-      el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error("Falha ao carregar a imagem base"));
-      el.src = imageUrl;
-    });
+    const [img, appIcon] = await Promise.all([
+      new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new window.Image();
+        el.crossOrigin = "anonymous";
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error("Falha ao carregar a imagem base"));
+        el.src = imageUrl;
+      }),
+      loadImageSafe("/icons/icon-512.png"),
+    ]);
+
+    const rows = memberTotals.slice(0, 5);
+    const avatarImgs = await Promise.all(rows.map((m) => (m.avatar_url ? loadImageSafe(m.avatar_url) : Promise.resolve(null))));
 
     const w = img.naturalWidth;
     const imgH = img.naturalHeight;
-    const rows = memberTotals.slice(0, 5);
 
-    // Tamanhos-base das faixas: topo só com o título da jornada, rodapé com o placar,
-    // e uma faixinha final com a marca "Prompt & Pace" + slogan (só aparece uma vez, aqui embaixo).
-    let topBarH = Math.round(w * 0.095);
-    const rowH = Math.round(w * 0.072);
-    const rowsPad = Math.round(w * 0.045);
-    let scoreBarH = Math.round(rows.length * rowH + rowsPad * 1.8);
-    const footerBarH = Math.round(w * 0.115);
+    const topBarH = Math.round(w * 0.13);
+    const rowH = Math.round(w * 0.1);
+    const cardPad = Math.round(w * 0.05);
+    const innerPad = Math.round(w * 0.045);
+    const cardH = Math.round(rows.length * rowH + innerPad * 1.4);
+    const cardX = cardPad;
+    const cardW = w - cardPad * 2;
+    const footerTextH = Math.round(w * 0.075);
 
-    // Estica topo e placar (não a arte, nem o rodapé da marca) até fechar em 9:16 — formato de Stories
+    let gapAboveCard = Math.round(cardPad * 0.7);
+    let gapBelowFooter = Math.round(cardPad * 0.7);
+
+    const naturalTotal = topBarH + imgH + gapAboveCard + cardH + footerTextH + gapBelowFooter;
     const targetH = Math.round(w * (16 / 9));
-    const extra = targetH - (topBarH + imgH + scoreBarH + footerBarH);
+    const extra = targetH - naturalTotal;
     if (extra > 0) {
-      topBarH += Math.round(extra * 0.3);
-      scoreBarH += Math.round(extra * 0.7);
+      gapAboveCard += Math.round(extra * 0.4);
+      gapBelowFooter += Math.round(extra * 0.6);
     }
 
     const canvas = document.createElement("canvas");
     canvas.width = w;
-    canvas.height = topBarH + imgH + scoreBarH + footerBarH;
+    canvas.height = topBarH + imgH + gapAboveCard + cardH + footerTextH + gapBelowFooter;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas não suportado");
 
-    // Fundo geral (cobre qualquer respiro extra com o degradê do tema, nunca fica em branco)
-    const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    bgGrad.addColorStop(0, journey.theme_a);
-    bgGrad.addColorStop(1, journey.theme_b);
-    ctx.fillStyle = bgGrad;
+    // Fundo geral — navy escuro (bate com a identidade do app, não o degradê da jornada)
+    ctx.fillStyle = "#05070F";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Ilustração da IA
     ctx.drawImage(img, 0, topBarH, w, imgH);
 
-    // Faixa do topo — só o nome da jornada
-    const topGrad = ctx.createLinearGradient(0, 0, w, 0);
-    topGrad.addColorStop(0, `${journey.theme_a}F2`);
-    topGrad.addColorStop(1, `${journey.theme_b}F2`);
-    ctx.fillStyle = topGrad;
-    ctx.fillRect(0, 0, w, topBarH);
+    // Faixa do topo — logo (ícone + PROMPT & PACE)
+    ctx.textBaseline = "middle";
+    ctx.font = `700 ${Math.round(topBarH * 0.34)}px "Bebas Neue", sans-serif`;
+    const promptW = ctx.measureText("PROMPT ").width;
+    const ampW = ctx.measureText("& ").width;
+    const paceW = ctx.measureText("PACE").width;
+    const iconSize = topBarH * 0.5;
+    const gap = iconSize * 0.28;
+    const totalW = iconSize + gap + promptW + ampW + paceW;
+    let cx = (w - totalW) / 2;
+    const iconY = (topBarH - iconSize) / 2;
 
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#05070F";
-    ctx.font = `700 ${Math.round(w * 0.055)}px "Bebas Neue", sans-serif`;
-    ctx.fillText(journey.title.toUpperCase(), w / 2, topBarH * 0.65);
+    if (appIcon) {
+      ctx.save();
+      roundRectPath(ctx, cx, iconY, iconSize, iconSize, iconSize * 0.26);
+      ctx.clip();
+      ctx.drawImage(appIcon, cx, iconY, iconSize, iconSize);
+      ctx.restore();
+    }
+    cx += iconSize + gap;
 
-    // Faixa do placar — ranking atual, centralizado verticalmente no espaço disponível
-    const scoreY = topBarH + imgH;
-    ctx.fillStyle = "rgba(5, 7, 15, 0.92)";
-    ctx.fillRect(0, scoreY, w, scoreBarH);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText("PROMPT ", cx, topBarH / 2);
+    cx += promptW;
+    ctx.fillText("& ", cx, topBarH / 2);
+    cx += ampW;
+    const paceGrad = ctx.createLinearGradient(cx, 0, cx + paceW, 0);
+    paceGrad.addColorStop(0, "#29F1D6");
+    paceGrad.addColorStop(1, "#8B5CF6");
+    ctx.fillStyle = paceGrad;
+    ctx.fillText("PACE", cx, topBarH / 2);
 
-    const contentH = rows.length * rowH;
-    const startY = scoreY + (scoreBarH - contentH) / 2;
-    const pad = Math.round(w * 0.06);
+    // Cartão do placar
+    const cardY = topBarH + imgH + gapAboveCard;
+    ctx.save();
+    ctx.shadowColor = `${journey.theme_a}55`;
+    ctx.shadowBlur = cardPad * 0.7;
+    roundRectPath(ctx, cardX, cardY, cardW, cardH, cardW * 0.05);
+    ctx.fillStyle = "rgba(12, 16, 34, 0.92)";
+    ctx.fill();
+    ctx.restore();
+    roundRectPath(ctx, cardX, cardY, cardW, cardH, cardW * 0.05);
+    ctx.strokeStyle = "rgba(255,255,255,0.14)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    const maxKm = Math.max(...rows.map((r) => r.km), 0.001);
 
     rows.forEach((m, i) => {
-      const y = startY + i * rowH;
-      const badgeR = rowH * 0.32;
-      const badgeX = pad + badgeR;
-      const badgeY = y + rowH * 0.34;
+      const y = cardY + innerPad * 0.7 + i * rowH;
+      const badgeR = rowH * 0.26;
+      const badgeX = cardX + innerPad + badgeR;
+      const rowMidY = y + rowH * 0.36;
 
       ctx.beginPath();
-      ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
+      ctx.arc(badgeX, rowMidY, badgeR, 0, Math.PI * 2);
       ctx.fillStyle = MEDAL_COLORS[i] ?? `${m.color}77`;
       ctx.fill();
-
-      ctx.fillStyle = "#05070F";
       ctx.textAlign = "center";
-      ctx.font = `800 ${Math.round(badgeR * 1.15)}px "Manrope", sans-serif`;
-      ctx.fillText(String(i + 1), badgeX, badgeY + badgeR * 0.36);
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#05070F";
+      ctx.font = `800 ${Math.round(badgeR * 1.05)}px "Manrope", sans-serif`;
+      ctx.fillText(String(i + 1), badgeX, rowMidY + 1);
 
+      const avR = rowH * 0.32;
+      const avX = badgeX + badgeR + avR + innerPad * 0.35;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(avX, rowMidY, avR, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      const avImg = avatarImgs[i];
+      if (avImg) {
+        ctx.drawImage(avImg, avX - avR, rowMidY - avR, avR * 2, avR * 2);
+      } else {
+        ctx.fillStyle = m.color;
+        ctx.fillRect(avX - avR, rowMidY - avR, avR * 2, avR * 2);
+        ctx.fillStyle = "#05070F";
+        ctx.font = `800 ${Math.round(avR)}px "Manrope", sans-serif`;
+        ctx.fillText(m.name.slice(0, 2).toUpperCase(), avX, rowMidY + 1);
+      }
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(avX, rowMidY, avR, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255,255,255,0.25)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const textX = avX + avR + innerPad * 0.5;
       ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
       ctx.fillStyle = "#F4F6FF";
-      ctx.font = `800 ${Math.round(rowH * 0.32)}px "Manrope", sans-serif`;
-      ctx.fillText(m.name, pad + badgeR * 2 + Math.round(w * 0.03), badgeY + rowH * 0.1);
+      ctx.font = `800 ${Math.round(rowH * 0.24)}px "Manrope", sans-serif`;
+      ctx.fillText(m.name, textX, y + rowH * 0.32);
 
+      const barW = cardW * 0.32;
+      const barH = Math.max(5, rowH * 0.09);
+      const barY = y + rowH * 0.46;
+      roundRectPath(ctx, textX, barY, barW, barH, barH / 2);
+      ctx.fillStyle = "rgba(255,255,255,0.12)";
+      ctx.fill();
+      const fillW = Math.max(barH, barW * (m.km / maxKm));
+      const barGrad = ctx.createLinearGradient(textX, 0, textX + fillW, 0);
+      barGrad.addColorStop(0, journey.theme_a);
+      barGrad.addColorStop(1, journey.theme_b);
+      roundRectPath(ctx, textX, barY, fillW, barH, barH / 2);
+      ctx.fillStyle = barGrad;
+      ctx.fill();
+
+      const rightX = cardX + cardW - innerPad;
       ctx.textAlign = "right";
-      ctx.fillStyle = journey.theme_a;
-      ctx.font = `800 ${Math.round(rowH * 0.32)}px "Manrope", sans-serif`;
-      ctx.fillText(`${m.km.toFixed(1)} km`, w - pad, badgeY + rowH * 0.1);
+      const kmGrad = ctx.createLinearGradient(rightX - cardW * 0.28, 0, rightX, 0);
+      kmGrad.addColorStop(0, journey.theme_a);
+      kmGrad.addColorStop(1, journey.theme_b);
+      ctx.fillStyle = kmGrad;
+      ctx.font = `800 ${Math.round(rowH * 0.3)}px "Manrope", sans-serif`;
+      ctx.fillText(`${m.km.toFixed(1)} km`, rightX, y + rowH * 0.32);
+      ctx.fillStyle = "#8890B5";
+      ctx.font = `600 ${Math.round(rowH * 0.15)}px "Manrope", sans-serif`;
+      ctx.fillText("Distância total", rightX, y + rowH * 0.5);
     });
 
-    // Faixa final — a marca do app aparece só aqui, uma única vez
-    const footerY = scoreY + scoreBarH;
-    ctx.fillStyle = "#05070F";
-    ctx.fillRect(0, footerY, w, footerBarH);
-
-    ctx.textAlign = "center";
+    // Rodapé — slogan da marca
+    const footerY = cardY + cardH + footerTextH * 0.62;
+    ctx.font = `700 ${Math.round(w * 0.034)}px "Manrope", sans-serif`;
+    const boltAndPart1 = "⚡ " + SLOGAN_PART1;
+    const seg1W = ctx.measureText(boltAndPart1).width;
+    const seg2W = ctx.measureText(SLOGAN_PART2).width;
+    let fx = (w - (seg1W + seg2W)) / 2;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#F4F6FF";
+    ctx.fillText(boltAndPart1, fx, footerY);
+    fx += seg1W;
     ctx.fillStyle = journey.theme_a;
-    ctx.font = `700 ${Math.round(w * 0.062)}px "Bebas Neue", sans-serif`;
-    ctx.fillText("PROMPT & PACE", w / 2, footerY + footerBarH * 0.52);
-    ctx.fillStyle = "#8890B5";
-    ctx.font = `600 ${Math.round(w * 0.026)}px "Manrope", sans-serif`;
-    ctx.fillText(SLOGAN, w / 2, footerY + footerBarH * 0.8);
+    ctx.fillText(SLOGAN_PART2, fx, footerY);
 
     return new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((blob) => {
