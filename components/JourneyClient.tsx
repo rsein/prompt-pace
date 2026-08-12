@@ -136,7 +136,6 @@ export default function JourneyClient({
 
   const me = memberTotals.find((m) => m.id === currentUserId);
   const monthRuns = useMemo(() => runs.filter((r) => isThisMonth(r.created_at)), [runs]);
-  const myRuns = monthRuns.filter((r) => r.user_id === currentUserId);
 
   const previousMonthLabel = useMemo(() => {
     const d = new Date();
@@ -324,7 +323,7 @@ export default function JourneyClient({
           <Podium memberTotals={memberTotals} />
         )}
 
-        {memberTotals.filter((m) => m.km > 0).length >= 2 && (
+        {memberTotals.filter((m) => m.km > 0).length >= 1 && (
           <button
             onClick={() => setPosterOpen(true)}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-extrabold mt-1 mb-2"
@@ -392,7 +391,7 @@ export default function JourneyClient({
         {me && (
           <>
             <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5 mt-6">
-              Sua contribuição <span className="normal-case font-semibold text-[10px]">(toque numa corrida pra editar)</span>
+              Sua contribuição
             </div>
             <div className="grid grid-cols-2 gap-2.5 mb-4">
               <StatCard label="Total" value={`${me.km.toFixed(1)} km`} />
@@ -400,29 +399,6 @@ export default function JourneyClient({
               <StatCard label="Corridas" value={String(me.runsCount)} />
               <StatCard label="Tempo total" value={`${fmtTime(me.timeSec)} min`} />
             </div>
-            {myRuns.length > 0 && (
-              <div className="bg-surface rounded-2xl p-1.5">
-                {myRuns.slice(0, 5).map((r, i) => (
-                  <button
-                    key={r.id}
-                    onClick={() => setEditingRun(r)}
-                    className="w-full flex items-center gap-3 px-2.5 py-2.5 text-left"
-                    style={{ borderBottom: i < Math.min(myRuns.length, 5) - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
-                  >
-                    <div className="flex-1">
-                      <div className="text-sm font-bold flex items-center gap-1.5">
-                      {fmtPace(r.time_sec, Number(r.km))} /km · {fmtTime(r.time_sec)} min
-                      {r.source === "strava" && <StravaTag />}
-                    </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-sm font-extrabold">{Number(r.km).toFixed(1)} km</div>
-                      <div className="text-[10px] text-muted font-semibold">{fmtDate(r.created_at)}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
           </>
         )}
       </div>

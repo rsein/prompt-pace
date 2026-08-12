@@ -132,7 +132,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Requisição inválida" }, { status: 400 });
   }
 
-  if (!journeyId || !Array.isArray(ranking) || ranking.length < 2) {
+  if (!journeyId || !Array.isArray(ranking) || ranking.length < 1) {
     return NextResponse.json({ error: "Dados insuficientes pra gerar o pôster" }, { status: 400 });
   }
 
@@ -190,14 +190,21 @@ export async function POST(request: Request) {
 
   const groupContext =
     allMemberNames.length > 0
-      ? `Contexto do grupo: essa jornada de corrida tem ${allMemberNames.length} participante(s) ao todo — ${allMemberNames.join(", ")}. A cena mostra só o pódio atual (top 3), mas é bom saber o grupo completo pro clima da ilustração.\n\n`
+      ? `Contexto do grupo: essa jornada de corrida tem ${allMemberNames.length} participante(s) ao todo — ${allMemberNames.join(", ")}. A cena mostra só ${top.length === 1 ? "essa pessoa" : "o pódio atual"}, mas é bom saber o grupo completo pro clima da ilustração.\n\n`
       : "";
+
+  const compositionNote =
+    top.length === 1
+      ? "Personagem correndo, sozinho(a) em destaque no centro da cena, em pleno esforço:"
+      : top.length === 2
+        ? "Personagens correndo (da esquerda pra direita: 2º lugar mais atrás à esquerda, 1º lugar na frente à direita):"
+        : "Personagens correndo (da esquerda pra direita: 2º lugar mais atrás à esquerda, 1º lugar na frente ao centro, 3º lugar mais atrás à direita):";
 
   const prompt = `Crie uma cena FOTORREALISTA de pessoas correndo, estilo still de filme de ação/aventura hollywoodiano — mas com um tom cômico e caloroso por baixo do drama exagerado. Iluminação cinematográfica intensa, cores saturadas, alto contraste, textura de foto real (não ilustração, não desenho, não cartoon).
 
 ${referenceMappingList}${groupContext}${refCountNote}Cenário: ${scene}
 
-Personagens correndo (da esquerda pra direita: 2º lugar mais atrás à esquerda, 1º lugar na frente ao centro, 3º lugar mais atrás à direita):
+${compositionNote}
 ${peopleDescription}
 
 Importante: o ÚNICO texto permitido na imagem é o nome de cada personagem estampado na própria camiseta dele, exatamente como descrito acima. NÃO escreva mais nenhuma outra palavra, letra, logotipo, faixa, placa ou painel em lugar nenhum da imagem. Deixe uma margem mais limpa e com menos detalhes essenciais perto do topo e da base da composição (cerca de 15% da altura em cada ponta), pra funcionar bem quando a gente sobrepuser uma faixa depois. Formato pôster vertical.`;
