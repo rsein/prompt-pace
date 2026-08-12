@@ -7,3 +7,20 @@ body {
   background: #05070f;
   color: #f4f6ff;
 }
+
+@keyframes ppBreathe {
+  0%, 100% { transform: scale(0.94); opacity: 0.85; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+
+@keyframes ppSpin {
+  to { transform: rotate(360deg); }
+}
+
+.pp-loading-icon {
+  animation: ppBreathe 1.8s ease-in-out infinite;
+}
+
+.pp-loading-ring {
+  animation: ppSpin 1.1s linear infinite;
+}
