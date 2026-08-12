@@ -123,24 +123,26 @@ export default function HomeClient({
         <div className="text-[11px] text-muted font-bold capitalize">{todayLabel}</div>
       </div>
 
-      {weather && weather.tempC !== null && (
-        <div className="mb-4">
-          <div className="flex items-center gap-1.5 text-[11px] text-muted font-semibold">
-            {weather.isGoodForRunning ? (
-              <Sun size={12} className="text-[#FFC145]" />
-            ) : (
-              <CloudRain size={12} className="text-[#7DA6FF]" />
-            )}
-            {weather.city && (
-              <>
-                <MapPin size={11} /> {weather.city} ·
-              </>
-            )}
-            <span>{Math.round(weather.tempC)}°C · {weather.description}</span>
+      <div className="mb-4 min-h-[40px]">
+        {weather && weather.tempC !== null && (
+          <div>
+            <div className="flex items-center gap-1.5 text-[11px] text-muted font-semibold">
+              {weather.isGoodForRunning ? (
+                <Sun size={12} className="text-[#FFC145]" />
+              ) : (
+                <CloudRain size={12} className="text-[#7DA6FF]" />
+              )}
+              {weather.city && (
+                <>
+                  <MapPin size={11} /> {weather.city} ·
+                </>
+              )}
+              <span>{Math.round(weather.tempC)}°C · {weather.description}</span>
+            </div>
+            {weather.phrase && <div className="text-[11px] text-muted italic mt-1 leading-snug">{weather.phrase}</div>}
           </div>
-          {weather.phrase && <div className="text-[11px] text-muted italic mt-1 leading-snug">{weather.phrase}</div>}
-        </div>
-      )}
+        )}
+      </div>
 
       {profile && (
         <Link href="/profile" className="flex items-center gap-2.5 mb-4 w-fit">
