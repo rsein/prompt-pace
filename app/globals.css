@@ -8,6 +8,12 @@ body {
   color: #f4f6ff;
 }
 
+/* Nota: já testamos declarar "color-scheme: dark" aqui pra evitar ajuste automático de cor
+   do sistema em alguns Android, mas isso deixou os gradientes (botões, barras de progresso)
+   visivelmente apagados em alguns aparelhos — por isso foi revertido. Se o problema de cor
+   voltar, o mais provável é ser o "escurecer conteúdo web" do próprio Android/navegador,
+   não o CSS daqui (que já foi conferido e está com a paleta original). */
+
 @keyframes ppBreathe {
   0%, 100% { transform: scale(0.94); opacity: 0.85; }
   50% { transform: scale(1.04); opacity: 1; }
