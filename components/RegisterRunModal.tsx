@@ -7,6 +7,19 @@ import { parseTimeInput, fmtPace, fmtTime, resizeImageFile } from "@/lib/utils";
 
 type JourneyOption = { id: string; title: string; theme_a: string; theme_b: string };
 
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Aplica a data escolhida mas mantém a hora atual (só pra manter uma ordenação sensata entre
+// corridas do mesmo dia) — evita problema de fuso construindo a data em componentes locais.
+function buildCreatedAt(dateStr: string) {
+  const now = new Date();
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
+}
+
 export default function RegisterRunModal({
   journeys,
   defaultJourneyIds,
@@ -23,6 +36,7 @@ export default function RegisterRunModal({
   const supabase = createClient();
   const [mode, setMode] = useState<"manual" | "photo">("manual");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(defaultJourneyIds));
+  const [date, setDate] = useState(todayStr());
   const [km, setKm] = useState("");
   const [time, setTime] = useState("");
   const [bpm, setBpm] = useState("");
@@ -131,6 +145,7 @@ export default function RegisterRunModal({
 
     setSaving(true);
     const timeSec = time ? parseTimeInput(time) : Math.round(kmValue * 330);
+    const createdAt = buildCreatedAt(date);
 
     const results = await Promise.all(
       targetIds.map((journeyId) =>
@@ -141,6 +156,7 @@ export default function RegisterRunModal({
           time_sec: timeSec,
           bpm: bpm ? parseInt(bpm, 10) : null,
           calories: calories ? parseInt(calories, 10) : null,
+          created_at: createdAt,
         })
       )
     );
@@ -162,13 +178,12 @@ export default function RegisterRunModal({
     onClose();
   }
 
-  function fieldClass() {
-    return "w-full bg-white/5 border rounded-xl px-4 py-3 text-base font-extrabold outline-none mt-2 mb-4";
-  }
-
   function fieldStyle(field: string) {
     return scannedFields.has(field) ? { borderColor: themeA } : { borderColor: "rgba(255,255,255,0.1)" };
   }
+
+  const inputClass = "w-full bg-white/5 border rounded-xl px-3 py-3 text-sm font-extrabold outline-none mt-1.5";
+  const labelClass = "text-[10px] font-bold text-muted uppercase tracking-wide";
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-end z-40">
@@ -307,47 +322,70 @@ export default function RegisterRunModal({
 
         {(mode === "manual" || photoPreview) && (
           <>
-            <label className="text-xs font-bold text-muted uppercase tracking-wide">Distância (km)</label>
-            <input
-              value={km}
-              onChange={(e) => setKm(e.target.value)}
-              placeholder="ex: 5.2"
-              className={fieldClass()}
-              style={fieldStyle("km")}
-            />
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <div>
+                <label className={labelClass}>Data</label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  max={todayStr()}
+                  className={inputClass}
+                  style={{ borderColor: "rgba(255,255,255,0.1)", colorScheme: "dark" }}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Km</label>
+                <input
+                  value={km}
+                  onChange={(e) => setKm(e.target.value)}
+                  placeholder="5.2"
+                  inputMode="decimal"
+                  className={inputClass}
+                  style={fieldStyle("km")}
+                />
+              </div>
 
-            <label className="text-xs font-bold text-muted uppercase tracking-wide">Tempo (h:mm:ss ou mm:ss)</label>
-            <input
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              placeholder="ex: 28:30 ou 1:05:30"
-              className={fieldClass()}
-              style={fieldStyle("time")}
-            />
+              <div>
+                <label className={labelClass}>Tempo</label>
+                <input
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  placeholder="28:30"
+                  className={inputClass}
+                  style={fieldStyle("time")}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Pace</label>
+                <div className={`${inputClass} bg-white/[0.03] border-white/5 text-muted`}>
+                  {livePace ? `${livePace}/km` : "--:--"}
+                </div>
+              </div>
 
-            <label className="text-xs font-bold text-muted uppercase tracking-wide">Pace</label>
-            <div className="w-full bg-white/[0.03] border border-white/5 rounded-xl px-4 py-3 text-base font-extrabold text-muted mt-2 mb-4">
-              {livePace ? `${livePace} /km` : "preenche km e tempo"}
+              <div>
+                <label className={labelClass}>Bpm</label>
+                <input
+                  value={bpm}
+                  onChange={(e) => setBpm(e.target.value)}
+                  placeholder="150"
+                  inputMode="numeric"
+                  className={inputClass}
+                  style={fieldStyle("bpm")}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Kcal</label>
+                <input
+                  value={calories}
+                  onChange={(e) => setCalories(e.target.value)}
+                  placeholder="320"
+                  inputMode="numeric"
+                  className={inputClass}
+                  style={fieldStyle("calories")}
+                />
+              </div>
             </div>
-
-            <label className="text-xs font-bold text-muted uppercase tracking-wide">Batimentos médios (opcional)</label>
-            <input
-              value={bpm}
-              onChange={(e) => setBpm(e.target.value)}
-              placeholder="ex: 150"
-              className={fieldClass()}
-              style={fieldStyle("bpm")}
-            />
-
-            <label className="text-xs font-bold text-muted uppercase tracking-wide">Calorias (opcional)</label>
-            <input
-              value={calories}
-              onChange={(e) => setCalories(e.target.value)}
-              placeholder="ex: 320"
-              inputMode="numeric"
-              className={fieldClass().replace("mb-4", "mb-5")}
-              style={fieldStyle("calories")}
-            />
 
             {error && <div className="text-xs text-red-400 font-semibold mb-3">{error}</div>}
 
