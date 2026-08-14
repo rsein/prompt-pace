@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Plus, Sparkles, MapPin, Share2, RefreshCw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, Plus, Sparkles, MapPin, Share2, RefreshCw, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fmtPace, fmtTime, fmtDate, isThisMonth, isThisYear, currentMonthLabel, currentYearLabel, periodProgress } from "@/lib/utils";
 import Avatar from "./Avatar";
@@ -28,6 +29,18 @@ export default function JourneyClient({
   allJourneys: { id: string; title: string; theme_a: string; theme_b: string }[];
 }) {
   const supabase = createClient();
+  const router = useRouter();
+  const isCreator = journey.created_by === currentUserId;
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+
+  async function handleLeave() {
+    setLeaving(true);
+    await supabase.from("journey_members").delete().eq("journey_id", journey.id).eq("user_id", currentUserId);
+    setLeaving(false);
+    router.push("/home");
+    router.refresh();
+  }
   const [runs, setRuns] = useState<Run[]>(initialRuns);
   const [periodView, setPeriodView] = useState<"monthly" | "annual">(journey.period_monthly ? "monthly" : "annual");
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -245,10 +258,47 @@ export default function JourneyClient({
           <Link href="/home" className="flex items-center gap-1 text-sm font-bold text-muted w-fit">
             <ChevronLeft size={16} /> Home
           </Link>
-          <button onClick={handleInvite} className="flex items-center gap-1.5 text-xs font-bold" style={{ color: journey.theme_a }}>
-            <Share2 size={13} /> {inviteMsg || "Convidar"}
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={handleInvite} className="flex items-center gap-1.5 text-xs font-bold" style={{ color: journey.theme_a }}>
+              <Share2 size={13} /> {inviteMsg || "Convidar"}
+            </button>
+            {!isCreator && (
+              <button
+                onClick={() => setConfirmingLeave(true)}
+                className="flex items-center gap-1.5 text-xs font-bold text-red-400"
+              >
+                <LogOut size={13} /> Sair
+              </button>
+            )}
+          </div>
         </div>
+
+        {confirmingLeave && (
+          <div className="bg-surface2 rounded-2xl p-4 mb-4">
+            <div className="text-sm font-bold mb-1">Sair de "{journey.title}"?</div>
+            <div className="text-xs text-muted mb-3 leading-relaxed">
+              Você deixa de ver essa jornada e sai do ranking. Suas corridas continuam registradas pros outros, e dá pra
+              voltar se alguém te convidar de novo.
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmingLeave(false)}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold"
+                style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleLeave}
+                disabled={leaving}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-red-500"
+                style={{ opacity: leaving ? 0.7 : 1 }}
+              >
+                {leaving ? "Saindo..." : "Sim, sair"}
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="text-[11px] font-extrabold uppercase tracking-wide" style={{ color: journey.theme_a }}>
           {journey.season}

@@ -1,24 +1,28 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Journey } from "@/lib/types";
 
 export default function JourneyCardMenu({
   journey,
+  currentUserId,
   onEdit,
   onDeleted,
 }: {
   journey: Journey;
+  currentUserId: string;
   onEdit: () => void;
   onDeleted: () => void;
 }) {
   const supabase = createClient();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  const isCreator = journey.created_by === currentUserId;
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -31,9 +35,18 @@ export default function JourneyCardMenu({
   }, []);
 
   async function handleDelete() {
-    setDeleting(true);
+    setBusy(true);
     await supabase.from("journeys").delete().eq("id", journey.id);
-    setDeleting(false);
+    setBusy(false);
+    setConfirming(false);
+    setOpen(false);
+    onDeleted();
+  }
+
+  async function handleLeave() {
+    setBusy(true);
+    await supabase.from("journey_members").delete().eq("journey_id", journey.id).eq("user_id", currentUserId);
+    setBusy(false);
     setConfirming(false);
     setOpen(false);
     onDeleted();
@@ -52,35 +65,61 @@ export default function JourneyCardMenu({
       </button>
 
       {open && !confirming && (
-        <div className="absolute right-0 top-9 z-20 bg-surface2 border border-white/10 rounded-xl overflow-hidden w-40 shadow-xl">
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              setOpen(false);
-              onEdit();
-            }}
-            className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-left hover:bg-white/5"
-          >
-            <Pencil size={14} /> Editar
-          </button>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              setConfirming(true);
-            }}
-            className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-left text-red-400 hover:bg-white/5"
-          >
-            <Trash2 size={14} /> Excluir
-          </button>
+        <div className="absolute right-0 top-9 z-20 bg-surface2 border border-white/10 rounded-xl overflow-hidden w-44 shadow-xl">
+          {isCreator ? (
+            <>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  setOpen(false);
+                  onEdit();
+                }}
+                className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-left hover:bg-white/5"
+              >
+                <Pencil size={14} /> Editar
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  setConfirming(true);
+                }}
+                className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-left text-red-400 hover:bg-white/5"
+              >
+                <Trash2 size={14} /> Excluir
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                setConfirming(true);
+              }}
+              className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-left text-red-400 hover:bg-white/5"
+            >
+              <LogOut size={14} /> Sair da jornada
+            </button>
+          )}
         </div>
       )}
 
       {open && confirming && (
         <div className="absolute right-0 top-9 z-20 bg-surface2 border border-white/10 rounded-xl p-4 w-56 shadow-xl">
-          <div className="text-sm font-bold mb-1">Excluir "{journey.title}"?</div>
-          <div className="text-xs text-muted mb-3">
-            Isso apaga a jornada e todas as corridas registradas nela, pra todo mundo. Não dá pra desfazer.
-          </div>
+          {isCreator ? (
+            <>
+              <div className="text-sm font-bold mb-1">Excluir "{journey.title}"?</div>
+              <div className="text-xs text-muted mb-3">
+                Isso apaga a jornada e todas as corridas registradas nela, pra todo mundo. Não dá pra desfazer.
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-sm font-bold mb-1">Sair de "{journey.title}"?</div>
+              <div className="text-xs text-muted mb-3">
+                Você deixa de ver essa jornada e sai do ranking. Suas corridas registradas continuam lá pros outros, mas dá pra
+                voltar depois se alguém te convidar de novo.
+              </div>
+            </>
+          )}
           <div className="flex gap-2">
             <button
               onClick={(e) => {
@@ -94,12 +133,12 @@ export default function JourneyCardMenu({
             <button
               onClick={(e) => {
                 e.preventDefault();
-                handleDelete();
+                isCreator ? handleDelete() : handleLeave();
               }}
-              disabled={deleting}
+              disabled={busy}
               className="flex-1 py-2 rounded-lg text-xs font-bold bg-red-500/80 text-white"
             >
-              {deleting ? "Excluindo..." : "Excluir"}
+              {busy ? "..." : isCreator ? "Excluir" : "Sair"}
             </button>
           </div>
         </div>

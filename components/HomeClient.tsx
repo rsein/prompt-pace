@@ -211,7 +211,7 @@ export default function HomeClient({
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <span className="text-[10px] text-muted font-bold whitespace-nowrap">{daysLeft}d restantes</span>
-                <JourneyCardMenu journey={j} onEdit={() => setEditingJourney(j)} onDeleted={refresh} />
+                <JourneyCardMenu journey={j} currentUserId={userId} onEdit={() => setEditingJourney(j)} onDeleted={refresh} />
               </div>
             </div>
 
