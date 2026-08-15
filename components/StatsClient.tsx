@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { BarChart, Bar, XAxis, ResponsiveContainer, LabelList } from "recharts";
 import { fmtPace, fmtTime, fmtDate } from "@/lib/utils";
 import StravaTag from "./StravaTag";
 import PersonalRunModal from "./PersonalRunModal";
@@ -75,23 +75,24 @@ export default function StatsClient({
       {months.some((m) => m.km > 0) && (
         <>
           <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5">Km por mês</div>
-          <div className="bg-surface rounded-2xl p-4 mb-6" style={{ height: 180 }}>
+          <div className="bg-surface rounded-2xl p-4 pt-6 mb-6" style={{ height: 210 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={months}>
+              <BarChart data={months} margin={{ top: 18, left: 0, right: 0 }}>
                 <defs>
                   <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={THEME_A} />
                     <stop offset="100%" stopColor={THEME_B} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#8890B5", fontSize: 11 }} interval={0} />
-                <Tooltip
-                  cursor={{ fill: "rgba(255,255,255,0.05)" }}
-                  contentStyle={{ background: "#0F1329", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }}
-                  formatter={(value: number) => [`${value} km`, ""]}
-                  labelFormatter={() => ""}
-                />
-                <Bar dataKey="km" fill="url(#barGrad)" radius={[4, 4, 0, 0]} />
+                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#8890B5", fontSize: 10 }} interval={0} />
+                <Bar dataKey="km" fill="url(#barGrad)" radius={[4, 4, 0, 0]}>
+                  <LabelList
+                    dataKey="km"
+                    position="top"
+                    formatter={(value: number) => (value > 0 ? value : "")}
+                    style={{ fill: "#F4F6FF", fontSize: 10, fontWeight: 700 }}
+                  />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>

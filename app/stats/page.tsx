@@ -22,17 +22,17 @@ export default async function StatsPage() {
     .map((m: any) => m.journeys)
     .filter(Boolean) as { id: string; title: string; theme_a: string; theme_b: string }[];
 
-  // Agrupa por mês (últimos 12 meses), pro gráfico e pra lista
+  // Agrupa por mês, de janeiro a dezembro do ano atual, pro gráfico e pra lista
   const now = new Date();
   const months: { key: string; label: string; km: number }[] = [];
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  for (let month = 0; month < 12; month++) {
+    const d = new Date(now.getFullYear(), month, 1);
+    const key = `${d.getFullYear()}-${String(month + 1).padStart(2, "0")}`;
     const label = d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
     const km = runsList
       .filter((r) => {
         const rd = new Date(r.created_at);
-        return rd.getFullYear() === d.getFullYear() && rd.getMonth() === d.getMonth();
+        return rd.getFullYear() === d.getFullYear() && rd.getMonth() === month;
       })
       .reduce((s, r) => s + Number(r.km), 0);
     months.push({ key, label, km: Math.round(km * 10) / 10 });
