@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { BarChart, Bar, XAxis, ResponsiveContainer, LabelList } from "recharts";
@@ -19,6 +19,7 @@ type Stats = {
 };
 
 type MonthData = { key: string; label: string; km: number };
+type YearData = { year: number; months: MonthData[] };
 type PersonalRun = { km: number; time_sec: number; created_at: string; source: "strava" | "manual"; key: string };
 type JourneyOption = { id: string; title: string; theme_a: string; theme_b: string };
 
@@ -32,19 +33,29 @@ function monthGroupLabel(dateStr: string) {
 
 export default function StatsClient({
   stats,
-  months,
+  yearsData,
   runs,
   journeys,
   userId,
 }: {
   stats: Stats;
-  months: MonthData[];
+  yearsData: YearData[];
   runs: PersonalRun[];
   journeys: JourneyOption[];
   userId: string;
 }) {
   const [items, setItems] = useState(runs);
   const [editingRun, setEditingRun] = useState<PersonalRun | null>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
+
+  const hasAnyData = yearsData.some((y) => y.months.some((m) => m.km > 0));
+
+  useEffect(() => {
+    // abre já no último ano (o atual) — desliza pra trás pra ver os anos anteriores
+    if (carouselRef.current) {
+      carouselRef.current.scrollLeft = carouselRef.current.scrollWidth;
+    }
+  }, []);
 
   const groups: { label: string; runs: PersonalRun[] }[] = [];
   for (const run of items) {
@@ -72,32 +83,7 @@ export default function StatsClient({
         <StatCard label="Maior corrida" value={`${stats.longestKm.toFixed(1)} km`} />
       </div>
 
-      {months.some((m) => m.km > 0) && (
-        <>
-          <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5">Km por mês</div>
-          <div className="bg-surface rounded-2xl p-4 pt-6 mb-6" style={{ height: 210 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={months} margin={{ top: 18, left: 0, right: 0 }}>
-                <defs>
-                  <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={THEME_A} />
-                    <stop offset="100%" stopColor={THEME_B} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#8890B5", fontSize: 10 }} interval={0} />
-                <Bar dataKey="km" fill="url(#barGrad)" radius={[4, 4, 0, 0]}>
-                  <LabelList
-                    dataKey="km"
-                    position="top"
-                    formatter={(value: number) => (value > 0 ? value : "")}
-                    style={{ fill: "#F4F6FF", fontSize: 10, fontWeight: 700 }}
-                  />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </>
-      )}
+
 
       <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5">
         Histórico completo <span className="normal-case font-semibold text-[10px]">(toque numa corrida pra editar, excluir ou add numa jornada)</span>
