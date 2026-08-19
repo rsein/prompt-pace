@@ -192,7 +192,59 @@ export default function HomeClient({
         </div>
       )}
 
+      {sorted.map((j) => {
+        const pct = j.period_monthly
+          ? Math.min(100, Math.round((j.monthlyKm / (j.monthly_goal_km || 1)) * 100))
+          : Math.min(100, Math.round((j.annualKm / (j.annual_goal_km || 1)) * 100));
+        const km = j.period_monthly ? j.monthlyKm : j.annualKm;
+        const goal = j.period_monthly ? j.monthly_goal_km : j.annual_goal_km;
+        const timeProgress = periodProgress(j.period_monthly ? "monthly" : "annual");
+        const daysLeft = timeProgress.daysLeft;
+        const hasGoal = !!goal && goal > 0;
+        const isFinalStretch = hasGoal && daysLeft <= 5;
+        const onTrack = pct >= timeProgress.pct;
+        const barColor = hasGoal ? paceColor(pct, timeProgress.pct) : null;
 
+        return (
+          <Link
+            key={j.id}
+            href={`/journey/${j.id}`}
+            className="block rounded-2xl p-5 mb-3 border relative"
+            style={{
+              background: `linear-gradient(135deg, ${j.theme_a}22, ${j.theme_b}33), #0F1329`,
+              borderColor: isFinalStretch ? (onTrack ? "#5CFF8F" : "#FF4D4D") : `${j.theme_a}44`,
+              borderWidth: isFinalStretch ? 2 : 1,
+              transition: "border-color 0.3s ease",
+            }}
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="text-[11px] font-extrabold uppercase tracking-wide" style={{ color: j.theme_a }}>
+                  {j.season}
+                </div>
+                <div className="font-display text-2xl mt-0.5">{j.title}</div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[10px] text-muted font-bold whitespace-nowrap">{daysLeft}d restantes</span>
+                <JourneyCardMenu journey={j} currentUserId={userId} onEdit={() => setEditingJourney(j)} onDeleted={refresh} />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="flex justify-between text-sm font-bold mb-1.5">
+                <span>{km.toFixed(1)} km</span>
+                <span className="text-muted">meta {goal} km</span>
+              </div>
+              <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${pct}%`, background: barColor ?? `linear-gradient(90deg, ${j.theme_a}, ${j.theme_b})` }}
+                />
+              </div>
+            </div>
+          </Link>
+        );
+      })}
 
       {journeys.length > 0 && (
         <button
