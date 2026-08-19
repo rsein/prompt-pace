@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Plus, Sparkles, MapPin, Share2, RefreshCw, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { fmtPace, fmtTime, fmtDate, isThisMonth, isThisYear, currentMonthLabel, currentYearLabel, periodProgress } from "@/lib/utils";
+import { fmtPace, fmtTime, fmtDate, isThisMonth, isThisYear, currentMonthLabel, currentYearLabel, periodProgress, paceColor } from "@/lib/utils";
 import Avatar from "./Avatar";
 import StravaTag from "./StravaTag";
 import Podium from "./Podium";
@@ -14,27 +14,6 @@ import EditRunModal from "./EditRunModal";
 import PosterModal from "./PosterModal";
 import RunReactions, { type Reaction } from "./RunReactions";
 import type { Journey, Profile, Run } from "@/lib/types";
-
-// Cor da barra de progresso conforme o ritmo: verde quando está em dia ou à frente do calendário,
-// e vai clareando pro amarelo até vermelho conforme o atraso aumenta (até um teto de 40 pontos).
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.replace("#", "");
-  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
-}
-function rgbToHex(r: number, g: number, b: number) {
-  return "#" + [r, g, b].map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join("");
-}
-function lerpColor(c1: string, c2: string, t: number) {
-  const [r1, g1, b1] = hexToRgb(c1);
-  const [r2, g2, b2] = hexToRgb(c2);
-  return rgbToHex(r1 + (r2 - r1) * t, g1 + (g2 - g1) * t, b1 + (b2 - b1) * t);
-}
-function paceColor(kmPct: number, timePct: number): string {
-  const diff = kmPct - timePct;
-  if (diff >= 0) return "#5CFF8F"; // verde — em dia ou à frente do calendário
-  const behind = Math.min(Math.abs(diff), 40);
-  return lerpColor("#FFC145", "#FF4D4D", behind / 40); // amarelo -> vermelho conforme o atraso cresce
-}
 
 export default function JourneyClient({
   journey,
