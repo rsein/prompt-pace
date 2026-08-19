@@ -10,6 +10,7 @@ import RegisterRunModal from "./RegisterRunModal";
 import PendingInvites from "./PendingInvites";
 import Avatar from "./Avatar";
 import { periodProgress, fmtPace } from "@/lib/utils";
+import { ensurePushSubscription } from "@/lib/push";
 import type { Journey, Profile } from "@/lib/types";
 
 type WeatherInfo = {
@@ -55,6 +56,13 @@ export default function HomeClient({
     () => new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "short" }).replace(".", ""),
     []
   );
+
+  // Se a notificação já tinha sido autorizada antes mas a inscrição se perdeu (reinstalação do
+  // app, troca de service worker etc), reativa sozinho aqui, sem precisar a pessoa notar e ir
+  // mexer no Perfil de novo.
+  useEffect(() => {
+    ensurePushSubscription(userId);
+  }, [userId]);
 
   // Sincroniza com o Strava sozinho sempre que a Home abre — sem precisar clicar em nada.
   // Limita a 1x a cada 5 minutos por navegador, pra não gastar à toa o limite de chamadas do Strava.

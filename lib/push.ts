@@ -15,11 +15,17 @@ export function isPushSupported() {
   return typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window;
 }
 
+// Usa serviceWorker.ready em vez de getRegistration() — getRegistration() pode responder antes do
+// service worker terminar de ativar logo depois de abrir o app, dizendo "sem inscrição" por engano
+// mesmo quando na verdade existe uma válida. .ready espera o SW estar de fato pronto antes de checar.
 export async function getPushSubscription() {
   if (!isPushSupported()) return null;
-  const registration = await navigator.serviceWorker.getRegistration();
-  if (!registration) return null;
-  return registration.pushManager.getSubscription();
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    return registration.pushManager.getSubscription();
+  } catch {
+    return null;
+  }
 }
 
 export async function enablePushNotifications(userId: string) {
@@ -40,10 +46,14 @@ export async function enablePushNotifications(userId: string) {
     throw new Error("Chave VAPID não configurada no projeto.");
   }
 
-  const subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-  });
+  // Reaproveita a inscrição existente se já tiver uma válida — evita gerar endpoint novo à toa
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+    });
+  }
 
   const json = subscription.toJSON();
   const supabase = createClient();
@@ -66,5 +76,22 @@ export async function disablePushNotifications(userId: string) {
     const supabase = createClient();
     await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint).eq("user_id", userId);
     await sub.unsubscribe();
+  }
+}
+
+// Autocorreção: se a pessoa já autorizou notificação antes (permissão concedida no navegador) mas
+// por algum motivo a inscrição sumiu (ex: reinstalou o app, trocou o service worker), reativa
+// sozinho, sem pedir permissão de novo (o navegador já lembra que foi concedida) e sem interromper
+// a pessoa com nenhum aviso — só conserta silenciosamente em segundo plano.
+export async function ensurePushSubscription(userId: string) {
+  if (!isPushSupported()) return;
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+
+  try {
+    const existing = await getPushSubscription();
+    if (existing) return; // já está tudo certo
+    await enablePushNotifications(userId);
+  } catch {
+    // autocorreção é só um bônus — se falhar, a pessoa ainda pode reativar manualmente no Perfil
   }
 }
