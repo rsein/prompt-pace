@@ -15,6 +15,27 @@ import PosterModal from "./PosterModal";
 import RunReactions, { type Reaction } from "./RunReactions";
 import type { Journey, Profile, Run } from "@/lib/types";
 
+// Cor da barra de progresso conforme o ritmo: verde quando está em dia ou à frente do calendário,
+// e vai clareando pro amarelo até vermelho conforme o atraso aumenta (até um teto de 40 pontos).
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+function rgbToHex(r: number, g: number, b: number) {
+  return "#" + [r, g, b].map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join("");
+}
+function lerpColor(c1: string, c2: string, t: number) {
+  const [r1, g1, b1] = hexToRgb(c1);
+  const [r2, g2, b2] = hexToRgb(c2);
+  return rgbToHex(r1 + (r2 - r1) * t, g1 + (g2 - g1) * t, b1 + (b2 - b1) * t);
+}
+function paceColor(kmPct: number, timePct: number): string {
+  const diff = kmPct - timePct;
+  if (diff >= 0) return "#5CFF8F"; // verde — em dia ou à frente do calendário
+  const behind = Math.min(Math.abs(diff), 40);
+  return lerpColor("#FFC145", "#FF4D4D", behind / 40); // amarelo -> vermelho conforme o atraso cresce
+}
+
 export default function JourneyClient({
   journey,
   members,
@@ -246,12 +267,18 @@ export default function JourneyClient({
     }
   }
 
+  const isFinalStretch = goalKm > 0 && timeProgress.daysLeft <= 5;
+  const onTrack = pct >= timeProgress.pct;
+  const barColor = goalKm > 0 ? paceColor(pct, timeProgress.pct) : null;
+
   return (
     <div className="max-w-md mx-auto pb-28 relative min-h-screen">
       <div
         className="px-5 pt-6 pb-5"
         style={{
           background: `radial-gradient(120% 140% at 20% -10%, ${journey.theme_b}55, transparent), radial-gradient(120% 140% at 100% 0%, ${journey.theme_a}44, transparent)`,
+          border: isFinalStretch ? `2px solid ${onTrack ? "#5CFF8F" : "#FF4D4D"}` : "2px solid transparent",
+          transition: "border-color 0.3s ease",
         }}
       >
         <div className="flex items-center justify-between mb-4">
@@ -347,7 +374,10 @@ export default function JourneyClient({
           <div className="h-2.5 rounded-full bg-white/10 overflow-hidden">
             <div
               className="h-full rounded-full transition-all"
-              style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${journey.theme_a}, ${journey.theme_b})` }}
+              style={{
+                width: `${pct}%`,
+                background: barColor ?? `linear-gradient(90deg, ${journey.theme_a}, ${journey.theme_b})`,
+              }}
             />
           </div>
 
@@ -355,8 +385,8 @@ export default function JourneyClient({
             <>
               <div className="flex justify-between items-center mt-2.5 mb-1">
                 <span className="text-[10px] text-muted font-semibold uppercase tracking-wide">Tempo do período</span>
-                <span className="text-[10px] font-bold" style={{ color: pct >= timeProgress.pct ? "#5CFF8F" : "#FF6B9D" }}>
-                  {pct >= timeProgress.pct ? "Você está à frente do calendário" : "Você está atrás do calendário"}
+                <span className="text-[10px] font-bold" style={{ color: barColor ?? "#5CFF8F" }}>
+                  {onTrack ? "Você está à frente do calendário" : "Você está atrás do calendário"}
                 </span>
               </div>
               <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
