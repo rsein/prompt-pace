@@ -76,10 +76,17 @@ type RankingMember = {
   km: number;
 };
 
-// Transforma o comentário do narrador numa descrição de CENÁRIO visual (ambiente/clima/ação de fundo) —
-// o texto do narrador vira inspiração pro prompt de imagem, nunca palavras escritas na foto.
-async function generateSceneFromNarrator(narratorComment: string): Promise<string | null> {
-  if (!narratorComment || !process.env.OPENAI_API_KEY) return null;
+// Interpreta o comentário do narrador AO PÉ DA LETRA — tanto pro cenário quanto pra ação de cada
+// pessoa especificamente. Se ele disser "Fulano tá disparando feito um foguete", Fulano aparece
+// literalmente montado num foguete. Se disser que alguém "tá dormindo", essa pessoa aparece
+// literalmente dormindo (numa cama, cadeira etc) em vez de correndo. A graça é a imagem revelar
+// a brincadeira do narrador de forma concreta, não só ambientar a cena.
+async function interpretNarratorLiterally(
+  narratorComment: string,
+  names: string[]
+): Promise<{ scene: string | null; actions: Record<string, string> }> {
+  const empty = { scene: null, actions: {} as Record<string, string> };
+  if (!narratorComment || !process.env.OPENAI_API_KEY) return empty;
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -90,25 +97,32 @@ async function generateSceneFromNarrator(narratorComment: string): Promise<strin
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        max_tokens: 120,
+        max_tokens: 350,
+        response_format: { type: "json_object" },
         messages: [
           {
             role: "system",
             content:
-              "Você transforma o comentário de um narrador esportivo brincalhão (sobre uma corrida de rua entre amigos) numa descrição de CENÁRIO fantasioso pra gerar uma imagem. Pegue as expressões, comparações e exageros usados no comentário AO PÉ DA LETRA e transforme em elementos visuais concretos e fantasiosos — por exemplo: se disser 'voou como um foguete', inclua um efeito visual literal de rastro de fogo ou fumaça de foguete atrás da pessoa; se disser 'correu que nem o vento', mostre folhas e poeira sendo levantadas ao redor; se disser 'quase morreu', exagere dramaticamente a cena com um clima quase apocalíptico; se mencionar algum lugar, animal, comida ou objeto, inclua literalmente esse elemento na cena de forma criativa. Escreva em português, 2 a 4 frases, descrevendo ambiente, iluminação e elementos fantasiosos de fundo (nunca pessoas específicas por nome, nunca texto que deve aparecer escrito na cena). Seja bem literal e criativo com as figuras de linguagem do narrador.",
+              'Você interpreta o comentário de um narrador esportivo brincalhão (sobre uma corrida de rua entre amigos) BEM AO PÉ DA LETRA, pra virar uma cena de pôster de filme de ação engraçado. Regra principal: se o narrador disser algo específico sobre UMA PESSOA usando uma expressão figurada, exagero ou brincadeira (ex: "disparando feito um foguete", "tá dormindo", "sumiu do mapa", "comendo poeira", "parece que tá comendo pizza no meio da corrida", "andando que nem uma tartaruga"), transforme isso numa AÇÃO LITERAL E VISUAL pra essa pessoa específica — literalmente montada num foguete, literalmente dormindo numa cama ou cadeira, literalmente comendo uma pizza, literalmente com uma casca de tartaruga nas costas, etc. Essa ação literal pode substituir completamente a ideia de "correndo" pra essa pessoa (ex: pode aparecer sentada, deitada, dormindo — não precisa estar correndo se o comentário sugerir outra coisa). Se o narrador não disser nada específico sobre uma determinada pessoa, deixe a ação dela em branco (nesse caso ela só aparece correndo normalmente, sem nenhuma ação especial). Responda SOMENTE em JSON válido, no formato exato: {"scene": "descrição do ambiente/cenário de fundo em 2-3 frases, em português", "actions": {"Nome1": "ação literal em português ou string vazia", "Nome2": "...", "Nome3": "..."}} — as chaves de "actions" devem ser EXATAMENTE os nomes fornecidos pelo usuário, nem mais nem menos.',
           },
           {
             role: "user",
-            content: `Comentário do narrador: "${narratorComment}"`,
+            content: `Comentário do narrador: "${narratorComment}"\nNomes das pessoas na cena, nessa ordem: ${names.join(", ")}`,
           },
         ],
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) return empty;
     const data = await res.json();
-    return data.choices?.[0]?.message?.content?.trim() || null;
+    const raw = data.choices?.[0]?.message?.content;
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw);
+    return {
+      scene: typeof parsed.scene === "string" ? parsed.scene : null,
+      actions: parsed.actions && typeof parsed.actions === "object" ? parsed.actions : {},
+    };
   } catch {
-    return null;
+    return empty;
   }
 }
 
@@ -137,7 +151,11 @@ export async function POST(request: Request) {
   }
 
   const top = ranking.slice(0, 3);
-  const scene = (await generateSceneFromNarrator(narratorComment)) ?? FALLBACK_SCENES[Math.floor(Math.random() * FALLBACK_SCENES.length)];
+  const { scene: literalScene, actions } = await interpretNarratorLiterally(
+    narratorComment,
+    top.map((m) => m.name)
+  );
+  const scene = literalScene ?? FALLBACK_SCENES[Math.floor(Math.random() * FALLBACK_SCENES.length)];
 
   // Baixa as fotos de perfil disponíveis pra usar como referência visual, em paralelo
   const withPhoto = top.filter((m) => m.avatar_url);
@@ -167,10 +185,18 @@ export async function POST(request: Request) {
       const ageNote = m.age ? ` Aparenta aproximadamente ${m.age} anos.` : "";
       const bodyNote = m.height_cm && m.weight_kg ? ` Porte físico compatível com ${m.height_cm}cm e ${m.weight_kg}kg (nem mais magro nem mais robusto que isso).` : "";
       const colorNote = ` Detalhe de cor ${colorName(m.color)} em algum item do look (tênis, pulseira ou faixa).`;
-      const base = `${POSITION_LABELS[i]}: pessoa chamada "${m.name}", ${POSITION_MOODS[i]}.${genderNote}${ethnicityNote}${ageNote}${bodyNote}${colorNote} Veste roupa de corrida (camiseta esportiva de manga curta ou regata + shorts/bermuda de corrida + tênis de corrida) — NUNCA calça comprida nem roupa do dia a dia. A camiseta tem o nome "${m.name}" estampado grande e bem legível no peito, como uma camiseta personalizada de corrida de rua.`;
+
+      const literalAction = actions[m.name]?.trim();
+      const positionContext = `(posição atual na jornada: ${POSITION_LABELS[i]})`;
+      const actionDescription = literalAction
+        ? `AÇÃO LITERAL baseada no comentário do narrador: ${literalAction}. ${positionContext}, mas retrate exatamente essa ação literal em vez da pose de corrida padrão.`
+        : `${POSITION_LABELS[i]}: ${POSITION_MOODS[i]}`;
+
+      const base = `Pessoa chamada "${m.name}". ${actionDescription}.${genderNote}${ethnicityNote}${ageNote}${bodyNote}${colorNote} ${literalAction ? "Se fizer sentido pra ação, pode vestir roupa de corrida (camiseta + shorts + tênis); senão, vista uma roupa que combine com a ação descrita." : "Veste roupa de corrida (camiseta esportiva de manga curta ou regata + shorts/bermuda de corrida + tênis de corrida) — NUNCA calça comprida nem roupa do dia a dia."} A camiseta ou roupa tem o nome "${m.name}" estampado grande e bem legível no peito, como uma camiseta personalizada de corrida de rua.`;
+
       return hasPhoto
         ? `${base} IMPORTANTE — FIDELIDADE DO ROSTO: a imagem de referência anexada NÚMERO ${refIndex + 1} (das ${referenceImages.length} anexadas, contando da primeira) é uma FOTO REAL do rosto desta pessoa específica. Use exatamente os traços faciais dessa foto de referência número ${refIndex + 1} — formato do rosto, olhos, nariz, boca, cabelo, barba (se houver) — sem estilizar, sem trocar por outra pessoa, sem misturar com os traços de nenhuma outra referência anexada. O rosto final tem que ser reconhecível como sendo o da pessoa dessa foto específica.`
-        : `${base} Essa pessoa não enviou foto de perfil — represente como um(a) corredor(a) realista genérico, respeitando todas as características acima.`;
+        : `${base} Essa pessoa não enviou foto de perfil — represente como uma pessoa realista genérica, respeitando todas as características acima.`;
     })
     .join("\n\n");
 
@@ -195,10 +221,10 @@ export async function POST(request: Request) {
 
   const compositionNote =
     top.length === 1
-      ? "Personagem correndo, sozinho(a) em destaque no centro da cena, em pleno esforço:"
+      ? "Personagem em destaque no centro da cena:"
       : top.length === 2
-        ? "Personagens correndo (da esquerda pra direita: 2º lugar mais atrás à esquerda, 1º lugar na frente à direita):"
-        : "Personagens correndo (da esquerda pra direita: 2º lugar mais atrás à esquerda, 1º lugar na frente ao centro, 3º lugar mais atrás à direita):";
+        ? "Personagens lado a lado (2º lugar mais à esquerda, 1º lugar mais à direita) — cada um fazendo a ação descrita abaixo, não necessariamente correndo:"
+        : "Personagens lado a lado (2º lugar mais atrás à esquerda, 1º lugar na frente ao centro, 3º lugar mais atrás à direita) — cada um fazendo a ação descrita abaixo, não necessariamente correndo:";
 
   const prompt = `Crie uma cena FOTORREALISTA de pessoas correndo, estilo still de filme de ação/aventura hollywoodiano — mas com um tom cômico e caloroso por baixo do drama exagerado. Iluminação cinematográfica intensa, cores saturadas, alto contraste, textura de foto real (não ilustração, não desenho, não cartoon).
 
