@@ -46,12 +46,15 @@ export default function StatsClient({
 }) {
   const [items, setItems] = useState(runs);
   const [editingRun, setEditingRun] = useState<PersonalRun | null>(null);
+  const [showAllMonths, setShowAllMonths] = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
 
-  const hasAnyData = yearsData.some((y) => y.months.some((m) => m.km > 0));
+  const currentYear = new Date().getFullYear();
+  const visibleYears = yearsData.filter((y) => y.year === currentYear || y.months.some((m) => m.km > 0));
+  const hasAnyData = visibleYears.some((y) => y.months.some((m) => m.km > 0));
 
   useEffect(() => {
-    // abre já no último ano (o atual) — desliza pra trás pra ver os anos anteriores
+    // abre já no último ano visível (o atual) — desliza pra trás pra ver os anos anteriores, se houver
     if (carouselRef.current) {
       carouselRef.current.scrollLeft = carouselRef.current.scrollWidth;
     }
@@ -64,6 +67,10 @@ export default function StatsClient({
     if (last && last.label === label) last.runs.push(run);
     else groups.push({ label, runs: [run] });
   }
+
+  const currentMonthLabel = monthGroupLabel(new Date().toISOString());
+  const visibleGroups = showAllMonths ? groups : groups.filter((g) => g.label === currentMonthLabel);
+  const hasOlderMonths = groups.some((g) => g.label !== currentMonthLabel);
 
   return (
     <div className="max-w-md mx-auto pb-16 px-5 pt-6">
@@ -86,51 +93,81 @@ export default function StatsClient({
       {hasAnyData && (
         <>
           <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5">Km por mês</div>
-          <div
-            ref={carouselRef}
-            className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth -mx-5 px-5 mb-1"
-            style={{ scrollbarWidth: "none" }}
-          >
-            {yearsData.map((yearData) => (
-              <div key={yearData.year} className="w-full shrink-0 snap-center px-0.5">
-                <div className="bg-surface rounded-2xl p-4 pt-6" style={{ height: 210 }}>
-                  <div className="text-center text-[11px] font-extrabold text-muted mb-1">{yearData.year}</div>
-                  <ResponsiveContainer width="100%" height="88%">
-                    <BarChart data={yearData.months} margin={{ top: 18, left: 0, right: 0 }}>
-                      <defs>
-                        <linearGradient id={`barGrad-${yearData.year}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={THEME_A} />
-                          <stop offset="100%" stopColor={THEME_B} />
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#8890B5", fontSize: 10 }} interval={0} />
-                      <Bar dataKey="km" fill={`url(#barGrad-${yearData.year})`} radius={[4, 4, 0, 0]}>
-                        <LabelList
-                          dataKey="km"
-                          position="top"
-                          formatter={(value: number) => (value > 0 ? value : "")}
-                          style={{ fill: "#F4F6FF", fontSize: 10, fontWeight: 700 }}
-                        />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+          {visibleYears.length === 1 ? (
+            <div className="bg-surface rounded-2xl p-4 pt-6 mb-6" style={{ height: 210 }}>
+              <div className="text-center text-[11px] font-extrabold text-muted mb-1">{visibleYears[0].year}</div>
+              <ResponsiveContainer width="100%" height="88%">
+                <BarChart data={visibleYears[0].months} margin={{ top: 18, left: 0, right: 0 }}>
+                  <defs>
+                    <linearGradient id="barGrad-single" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={THEME_A} />
+                      <stop offset="100%" stopColor={THEME_B} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#8890B5", fontSize: 10 }} interval={0} />
+                  <Bar dataKey="km" fill="url(#barGrad-single)" radius={[4, 4, 0, 0]}>
+                    <LabelList
+                      dataKey="km"
+                      position="top"
+                      formatter={(value: number) => (value > 0 ? value : "")}
+                      style={{ fill: "#F4F6FF", fontSize: 10, fontWeight: 700 }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <>
+              <div
+                ref={carouselRef}
+                className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth -mx-5 px-5 mb-1"
+                style={{ scrollbarWidth: "none" }}
+              >
+                {visibleYears.map((yearData) => (
+                  <div key={yearData.year} className="w-full shrink-0 snap-center px-0.5">
+                    <div className="bg-surface rounded-2xl p-4 pt-6" style={{ height: 210 }}>
+                      <div className="text-center text-[11px] font-extrabold text-muted mb-1">{yearData.year}</div>
+                      <ResponsiveContainer width="100%" height="88%">
+                        <BarChart data={yearData.months} margin={{ top: 18, left: 0, right: 0 }}>
+                          <defs>
+                            <linearGradient id={`barGrad-${yearData.year}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={THEME_A} />
+                              <stop offset="100%" stopColor={THEME_B} />
+                            </linearGradient>
+                          </defs>
+                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#8890B5", fontSize: 10 }} interval={0} />
+                          <Bar dataKey="km" fill={`url(#barGrad-${yearData.year})`} radius={[4, 4, 0, 0]}>
+                            <LabelList
+                              dataKey="km"
+                              position="top"
+                              formatter={(value: number) => (value > 0 ? value : "")}
+                              style={{ fill: "#F4F6FF", fontSize: 10, fontWeight: 700 }}
+                            />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="text-center text-[10px] text-muted font-semibold mb-6">deslize pro lado pra ver outros anos</div>
+              <div className="text-center text-[10px] text-muted font-semibold mb-6">deslize pro lado pra ver outros anos</div>
+            </>
+          )}
         </>
       )}
 
       <div className="text-xs font-extrabold uppercase tracking-wide text-muted mb-2.5">
-        Histórico completo <span className="normal-case font-semibold text-[10px]">(toque numa corrida pra editar, excluir ou add numa jornada)</span>
+        {showAllMonths ? "Histórico completo" : "Este mês"}{" "}
+        <span className="normal-case font-semibold text-[10px]">(toque numa corrida pra editar, excluir ou add numa jornada)</span>
       </div>
 
-      {groups.length === 0 && (
-        <div className="text-sm text-muted bg-surface rounded-2xl p-4">Nenhuma corrida registrada ainda.</div>
+      {visibleGroups.length === 0 && (
+        <div className="text-sm text-muted bg-surface rounded-2xl p-4 mb-2">
+          {showAllMonths ? "Nenhuma corrida registrada ainda." : "Nenhuma corrida esse mês ainda."}
+        </div>
       )}
 
-      {groups.map((group) => (
+      {visibleGroups.map((group) => (
         <div key={group.label} className="mb-4">
           <div className="text-[11px] text-muted font-bold mb-1.5 capitalize px-1">{group.label}</div>
           <div className="bg-surface rounded-2xl p-1.5">
@@ -156,6 +193,25 @@ export default function StatsClient({
           </div>
         </div>
       ))}
+
+      {!showAllMonths && hasOlderMonths && (
+        <button
+          onClick={() => setShowAllMonths(true)}
+          className="w-full py-3 rounded-xl text-xs font-bold text-muted mb-2"
+          style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          Mais registros (meses anteriores)
+        </button>
+      )}
+      {showAllMonths && (
+        <button
+          onClick={() => setShowAllMonths(false)}
+          className="w-full py-3 rounded-xl text-xs font-bold text-muted mb-2"
+          style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          Mostrar só este mês
+        </button>
+      )}
 
       {editingRun && (
         <PersonalRunModal
