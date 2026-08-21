@@ -16,7 +16,7 @@ function ensureVapid() {
 export async function POST(request: Request) {
   const { journeyId, runnerId, runnerName, comment } = await request.json();
 
-  if (!journeyId || !runnerId || !comment) {
+  if (!journeyId || !runnerId) {
     return NextResponse.json({ error: "Dados faltando" }, { status: 400 });
   }
 
@@ -31,7 +31,8 @@ export async function POST(request: Request) {
   const { data: memberRows } = await supabase
     .from("journey_members")
     .select("user_id")
-    .eq("journey_id", journeyId);
+    .eq("journey_id", journeyId)
+    .eq("status", "accepted"); // só quem já aceitou o convite — pendente não deve receber nada ainda
 
   const otherIds = (memberRows ?? [])
     .map((m: { user_id: string }) => m.user_id)
@@ -41,6 +42,8 @@ export async function POST(request: Request) {
 
   const { data: subs } = await supabase.from("push_subscriptions").select("*").in("user_id", otherIds);
 
+  const body = comment || `${runnerName || "Alguém"} acabou de registrar uma corrida na jornada.`;
+
   let sent = 0;
   await Promise.all(
     (subs ?? []).map(async (sub: { id: string; endpoint: string; p256dh: string; auth: string }) => {
@@ -49,7 +52,7 @@ export async function POST(request: Request) {
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           JSON.stringify({
             title: `${runnerName || "Alguém"} registrou uma corrida 🏃`,
-            body: comment,
+            body,
             url: `/journey/${journeyId}`,
           })
         );

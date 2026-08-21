@@ -86,21 +86,36 @@ export default function JourneyClient({
     generateComment(data ?? []);
   }
 
-  async function refreshRuns() {
+  async function notifyJourneys(ids: string[], richComment?: string) {
+    const runnerName = members.find((m) => m.id === currentUserId)?.name ?? "Alguém";
+    ids.forEach((id) => {
+      fetch("/api/notify-run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          journeyId: id,
+          runnerId: currentUserId,
+          runnerName,
+          comment: id === journey.id ? richComment : undefined,
+        }),
+      }).catch(() => {});
+    });
+  }
+
+  async function refreshRuns(allRegisteredIds: string[] = [journey.id]) {
     const { data } = await supabase
       .from("runs")
       .select("*")
       .eq("journey_id", journey.id)
       .order("created_at", { ascending: false });
-    setRuns(data ?? []);
-    const comment = await generateComment(data ?? []);
 
-    const runnerName = members.find((m) => m.id === currentUserId)?.name ?? "Alguém";
-    fetch("/api/notify-run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ journeyId: journey.id, runnerId: currentUserId, runnerName, comment }),
-    }).catch(() => {});
+    let richComment: string | undefined;
+    if (allRegisteredIds.includes(journey.id)) {
+      setRuns(data ?? []);
+      richComment = await generateComment(data ?? []);
+    }
+
+    notifyJourneys(allRegisteredIds, richComment);
   }
 
   async function generateComment(currentRuns: Run[]) {
@@ -515,9 +530,7 @@ export default function JourneyClient({
           defaultJourneyIds={[journey.id]}
           userId={currentUserId}
           onClose={() => setRegisterOpen(false)}
-          onRegistered={(ids) => {
-            if (ids.includes(journey.id)) refreshRuns();
-          }}
+          onRegistered={(ids) => refreshRuns(ids)}
         />
       )}
 

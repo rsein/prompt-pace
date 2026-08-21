@@ -274,7 +274,16 @@ export default function HomeClient({
           defaultJourneyIds={defaultJourneyId ? [defaultJourneyId] : []}
           userId={userId}
           onClose={() => setRegisterOpen(false)}
-          onRegistered={refresh}
+          onRegistered={(ids) => {
+            ids.forEach((journeyId) => {
+              fetch("/api/notify-run", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ journeyId, runnerId: userId, runnerName: profile?.name }),
+              }).catch(() => {});
+            });
+            refresh();
+          }}
         />
       )}
     </div>
