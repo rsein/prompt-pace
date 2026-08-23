@@ -40,6 +40,7 @@ export type Run = {
   created_at: string;
   source?: string;
   external_id?: string | null;
+  polyline?: string | null;
 };
 
 export type MemberTotal = Profile & {

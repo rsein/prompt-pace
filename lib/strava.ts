@@ -57,6 +57,7 @@ export type StravaActivity = {
   start_date: string;
   average_heartrate?: number;
   calories?: number;
+  map?: { summary_polyline?: string };
 };
 
 export function isRunActivity(a: StravaActivity) {

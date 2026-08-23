@@ -64,11 +64,12 @@ export async function syncStravaActivities(
     bpm: a.average_heartrate ? Math.round(a.average_heartrate) : null,
     calories: a.calories ? Math.round(a.calories) : null,
     created_at: a.start_date,
+    polyline: a.map?.summary_polyline || null,
   }));
   if (historyRows.length > 0) {
     const { error: historyErr } = await admin
       .from("strava_history")
-      .upsert(historyRows, { onConflict: "user_id,external_id", ignoreDuplicates: true });
+      .upsert(historyRows, { onConflict: "user_id,external_id" });
     if (historyErr) console.error("Erro ao gravar strava_history:", historyErr);
   }
 
@@ -113,6 +114,7 @@ export async function syncStravaActivities(
         created_at: activity.start_date,
         source: "strava",
         external_id: String(activity.id),
+        polyline: activity.map?.summary_polyline || null,
       });
     }
 
@@ -120,7 +122,7 @@ export async function syncStravaActivities(
       // upsert (não insert simples) garante que reconectar o Strava nunca duplica corrida já importada
       const { error } = await admin
         .from("runs")
-        .upsert(rowsToUpsert, { onConflict: "journey_id,source,external_id", ignoreDuplicates: true });
+        .upsert(rowsToUpsert, { onConflict: "journey_id,source,external_id" });
       if (error) {
         hadError = true;
         console.error(`Erro ao gravar corridas do Strava na jornada ${journeyId}:`, error);

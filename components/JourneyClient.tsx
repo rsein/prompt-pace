@@ -13,6 +13,7 @@ import RegisterRunModal from "./RegisterRunModal";
 import EditRunModal from "./EditRunModal";
 import PosterModal from "./PosterModal";
 import RunReactions, { type Reaction } from "./RunReactions";
+import RouteMap from "./RouteMap";
 import type { Journey, Profile, Run } from "@/lib/types";
 
 export default function JourneyClient({
@@ -483,6 +484,7 @@ export default function JourneyClient({
                     <div className="text-[10px] text-muted font-semibold">{fmtDate(r.created_at)}</div>
                   </div>
                 </div>
+
                 <div className="mt-1.5 pl-[43px]">
                   <RunReactions
                     runId={r.id}
@@ -494,6 +496,11 @@ export default function JourneyClient({
                     onChange={() => loadReactions(monthRuns.map((rr) => rr.id))}
                   />
                 </div>
+                {i === 0 && r.polyline && (
+                  <div className="mt-2.5">
+                    <RouteMap polyline={r.polyline} />
+                  </div>
+                )}
               </div>
             );
           })}
