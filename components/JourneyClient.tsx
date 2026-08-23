@@ -167,6 +167,7 @@ export default function JourneyClient({
   const me = memberTotals.find((m) => m.id === currentUserId);
   const monthRuns = useMemo(() => runs.filter((r) => isThisMonth(r.created_at)), [runs]);
   const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
+  const [expandedMapId, setExpandedMapId] = useState<string | null>(null);
 
   async function loadReactions(runIds: string[]) {
     if (runIds.length === 0) {
@@ -496,7 +497,19 @@ export default function JourneyClient({
                     onChange={() => loadReactions(monthRuns.map((rr) => rr.id))}
                   />
                 </div>
-                {i === 0 && r.polyline && (
+                {r.polyline && i !== 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedMapId(expandedMapId === r.id ? null : r.id);
+                    }}
+                    className="mt-1.5 ml-[43px] flex items-center gap-1 text-[11px] font-bold"
+                    style={{ color: journey.theme_a }}
+                  >
+                    <MapPin size={11} /> {expandedMapId === r.id ? "Esconder mapa" : "Ver mapa"}
+                  </button>
+                )}
+                {((i === 0 && r.polyline) || (expandedMapId === r.id && r.polyline)) && (
                   <div className="mt-2.5">
                     <RouteMap polyline={r.polyline} />
                   </div>
