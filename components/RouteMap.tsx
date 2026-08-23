@@ -1,59 +1,103 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import "leaflet/dist/leaflet.css";
+import { useEffect, useRef, useState } from "react";
+import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 import { decodePolyline } from "@/lib/polyline";
+
+// Estilo escuro customizado do Google Maps, combinando com o tema do app
+const DARK_MAP_STYLE = [
+  { elementType: "geometry", stylers: [{ color: "#0A0E22" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#8890B5" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#0A0E22" }] },
+  { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#1a1f3a" }] },
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#171C3A" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#0F1329" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#2a2f52" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#05070F" }] },
+];
+
+let optionsSet = false;
+function ensureOptions() {
+  if (optionsSet) return;
+  setOptions({ key: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "", v: "weekly" });
+  optionsSet = true;
+}
 
 export default function RouteMap({ polyline }: { polyline: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
+    if (!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) {
+      setError(true);
+      return;
+    }
+
     const points = decodePolyline(polyline);
     if (points.length < 2 || !containerRef.current) return;
-
+    const el = containerRef.current;
     let cancelled = false;
 
-    import("leaflet").then((L) => {
-      if (cancelled || !containerRef.current) return;
+    ensureOptions();
 
-      // Se o componente re-renderizar com um traçado diferente, remove o mapa anterior antes de criar outro
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
+    Promise.all([importLibrary("maps"), importLibrary("marker")])
+      .then(() => {
+        if (cancelled) return;
 
-      const map = L.map(containerRef.current, {
-        zoomControl: false,
-        dragging: false,
-        scrollWheelZoom: false,
-        doubleClickZoom: false,
-        touchZoom: false,
-        attributionControl: true,
-      });
-      mapRef.current = map;
+        const path = points.map(([lat, lng]) => ({ lat, lng }));
 
-      // Tiles escuros do CartoDB (gratuitos, sem precisar de chave) — combina com o tema escuro do app
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: "abcd",
-        maxZoom: 19,
-      }).addTo(map);
+        const map = new google.maps.Map(el, {
+          styles: DARK_MAP_STYLE,
+          disableDefaultUI: true,
+          gestureHandling: "none",
+          keyboardShortcuts: false,
+          backgroundColor: "#0A0E22",
+        });
 
-      const line = L.polyline(points, { color: "#29F1D6", weight: 4, lineCap: "round", lineJoin: "round" }).addTo(map);
-      map.fitBounds(line.getBounds(), { padding: [20, 20] });
+        new google.maps.Polyline({
+          path,
+          strokeColor: "#29F1D6",
+          strokeWeight: 4,
+          strokeOpacity: 0.95,
+          map,
+        });
 
-      L.circleMarker(points[0], { radius: 6, color: "#0A0E22", weight: 2, fillColor: "#29F1D6", fillOpacity: 1 }).addTo(map);
-    });
+        new google.maps.Marker({
+          position: path[0],
+          map,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 7,
+            fillColor: "#29F1D6",
+            fillOpacity: 1,
+            strokeColor: "#0A0E22",
+            strokeWeight: 2,
+          },
+        });
+
+        const bounds = new google.maps.LatLngBounds();
+        path.forEach((p) => bounds.extend(p));
+        map.fitBounds(bounds, 24);
+      })
+      .catch(() => setError(true));
 
     return () => {
       cancelled = true;
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
     };
   }, [polyline]);
+
+  if (error) {
+    return (
+      <div
+        className="w-full rounded-xl flex items-center justify-center text-xs text-center px-4"
+        style={{ height: 180, background: "#0A0E22", color: "#8890B5" }}
+      >
+        Não consegui carregar o mapa agora.
+      </div>
+    );
+  }
 
   return (
     <div
