@@ -80,3 +80,19 @@ export async function fetchStravaActivities(accessToken: string, afterUnixSecond
   }
   return all;
 }
+
+// A lista de atividades às vezes vem sem o traçado (summary_polyline vazio) mesmo quando a
+// corrida tem GPS de verdade — é uma inconsistência conhecida da API do Strava. Quando isso
+// acontece, busca a atividade específica, que traz o traçado de forma mais confiável.
+export async function fetchActivityPolyline(accessToken: string, activityId: number): Promise<string | null> {
+  try {
+    const res = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.map?.polyline || data.map?.summary_polyline || null;
+  } catch {
+    return null;
+  }
+}

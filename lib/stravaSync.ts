@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { refreshStravaToken, fetchStravaActivities, isRunActivity, type StravaActivity } from "./strava";
+import { refreshStravaToken, fetchStravaActivities, fetchActivityPolyline, isRunActivity, type StravaActivity } from "./strava";
 
 export async function getValidStravaAccessToken(admin: SupabaseClient, userId: string): Promise<string> {
   const { data: conn } = await admin
@@ -55,6 +55,16 @@ export async function syncStravaActivities(
   const activities = await fetchStravaActivities(accessToken, afterUnixSeconds, opts.maxPages ?? 10);
   const runs: StravaActivity[] = activities.filter(isRunActivity);
 
+  // A lista às vezes não traz o traçado mesmo a corrida tendo GPS — busca a atividade específica
+  // nesses casos, pra não perder o mapa à toa.
+  const polylineByActivityId = new Map<number, string | null>();
+  await Promise.all(
+    runs.map(async (a) => {
+      const fromList = a.map?.summary_polyline || null;
+      polylineByActivityId.set(a.id, fromList || (await fetchActivityPolyline(accessToken, a.id)));
+    })
+  );
+
   // Arquivo pessoal (todas as jornadas, sem duplicar por journey_id) — sempre atualizado
   const historyRows = runs.map((a) => ({
     user_id: userId,
@@ -64,7 +74,7 @@ export async function syncStravaActivities(
     bpm: a.average_heartrate ? Math.round(a.average_heartrate) : null,
     calories: a.calories ? Math.round(a.calories) : null,
     created_at: a.start_date,
-    polyline: a.map?.summary_polyline || null,
+    polyline: polylineByActivityId.get(a.id) ?? null,
   }));
   if (historyRows.length > 0) {
     const { error: historyErr } = await admin
@@ -114,7 +124,7 @@ export async function syncStravaActivities(
         created_at: activity.start_date,
         source: "strava",
         external_id: String(activity.id),
-        polyline: activity.map?.summary_polyline || null,
+        polyline: polylineByActivityId.get(activity.id) ?? null,
       });
     }
 
