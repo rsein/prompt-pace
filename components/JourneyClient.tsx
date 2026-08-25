@@ -534,7 +534,7 @@ export default function JourneyClient({
         )}
       </div>
 
-      <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto">
+      <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto z-40">
         <button
           onClick={() => setRegisterOpen(true)}
           className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-extrabold text-sm text-bg"

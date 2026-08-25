@@ -59,7 +59,7 @@ export default function RouteMap({ polyline }: { polyline: string }) {
     <div
       ref={containerRef}
       className="w-full rounded-xl overflow-hidden"
-      style={{ height: 180, background: "#0A0E22" }}
+      style={{ height: 180, background: "#0A0E22", position: "relative", zIndex: 0, isolation: "isolate" }}
     />
   );
 }
