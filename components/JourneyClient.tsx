@@ -214,6 +214,21 @@ export default function JourneyClient({
   const hasPreviousMonthData = previousMonthTotals.some((m) => m.km > 0);
   const carouselRef = useRef<HTMLDivElement>(null);
 
+  const [prevMonthResult, setPrevMonthResult] = useState<{ goal_km: number; achieved_km: number; completed: boolean } | null>(null);
+  useEffect(() => {
+    const now = new Date();
+    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    supabase
+      .from("journey_month_results")
+      .select("goal_km, achieved_km, completed")
+      .eq("journey_id", journey.id)
+      .eq("year", prevDate.getFullYear())
+      .eq("month", prevDate.getMonth() + 1)
+      .maybeSingle()
+      .then(({ data }) => setPrevMonthResult(data ?? null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [journey.id]);
+
   useEffect(() => {
     if (hasPreviousMonthData && carouselRef.current) {
       carouselRef.current.scrollLeft = carouselRef.current.clientWidth;
@@ -405,6 +420,24 @@ export default function JourneyClient({
                 <div className="text-center text-[11px] font-extrabold uppercase tracking-wide text-muted mb-2 capitalize">
                   {previousMonthLabel}
                 </div>
+                {prevMonthResult && (
+                  <div
+                    className="rounded-2xl p-3.5 mb-3 text-center"
+                    style={{
+                      background: prevMonthResult.completed ? "rgba(92,255,143,0.1)" : "rgba(255,77,77,0.1)",
+                      border: `1px solid ${prevMonthResult.completed ? "#5CFF8F" : "#FF4D4D"}`,
+                    }}
+                  >
+                    <div className="text-sm font-extrabold" style={{ color: prevMonthResult.completed ? "#5CFF8F" : "#FF4D4D" }}>
+                      {prevMonthResult.completed ? "Parabéns, Meta Concluída! 🎉" : "Não foi dessa vez! 😕"}
+                    </div>
+                    <div className="text-[11px] text-muted mt-1">
+                      {prevMonthResult.achieved_km.toFixed(1)}km de {prevMonthResult.goal_km}km da meta
+                      {!prevMonthResult.completed &&
+                        ` — faltaram ${(prevMonthResult.goal_km - prevMonthResult.achieved_km).toFixed(1)}km`}
+                    </div>
+                  </div>
+                )}
                 <Podium memberTotals={previousMonthTotals} />
               </div>
               <div className="w-full shrink-0 snap-center pl-1">
