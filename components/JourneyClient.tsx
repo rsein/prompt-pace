@@ -311,6 +311,27 @@ export default function JourneyClient({
   const onTrack = pct >= timeProgress.pct;
   const barColor = goalKm > 0 ? paceColor(pct, timeProgress.pct) : null;
 
+  const soloMode = members.length === 1;
+  const motivationalPhrase = useMemo(() => {
+    if (goalKm === 0) return null;
+    if (timeProgress.pct < 10) {
+      return soloMode
+        ? "Começando agora — define logo seu ritmo pro mês!"
+        : "Começando agora — bora definir logo o ritmo do grupo!";
+    }
+    if (onTrack) {
+      return soloMode
+        ? "Você está indo bem! Continue assim pra bater a meta."
+        : "Vocês estão indo bem! Continuem assim pra bater a meta.";
+    }
+    if (timeProgress.pct > 80) {
+      return soloMode ? "Reta final — acelera que ainda dá tempo!" : "Reta final — acelerem que ainda dá tempo!";
+    }
+    return soloMode
+      ? "Ainda dá tempo de recuperar o ritmo — vamos lá!"
+      : "Ainda dá tempo de recuperar o ritmo — vamos, time!";
+  }, [goalKm, timeProgress.pct, onTrack, soloMode]);
+
   return (
     <div className="max-w-md mx-auto pb-28 relative min-h-screen">
       <div
@@ -472,9 +493,22 @@ export default function JourneyClient({
               ))}
               <div ref={currentMonthPanelRef} className="w-full shrink-0 snap-center px-0.5">
                 <div className="text-center text-[11px] font-extrabold uppercase tracking-wide text-muted mb-2">Mês atual</div>
-                {/* espaço reservado, do mesmo tamanho do banner dos meses fechados — sem isso, o pódio
-                    do mês atual fica mais alto que o dos meses anteriores e a base não bate */}
-                <div style={{ minHeight: 74 }} className="mb-3" />
+                {motivationalPhrase ? (
+                  <div
+                    className="rounded-2xl p-3.5 mb-3 text-center flex flex-col items-center justify-center"
+                    style={{
+                      minHeight: 74,
+                      background: `${barColor ?? "#5CFF8F"}1A`,
+                      border: `1px solid ${barColor ?? "#5CFF8F"}`,
+                    }}
+                  >
+                    <div className="text-sm font-extrabold" style={{ color: barColor ?? "#5CFF8F" }}>
+                      {motivationalPhrase}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ minHeight: 74 }} className="mb-3" />
+                )}
                 <Podium memberTotals={memberTotals} />
               </div>
             </div>
