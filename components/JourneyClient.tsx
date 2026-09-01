@@ -451,8 +451,9 @@ export default function JourneyClient({
                     {cm.label}
                   </div>
                   <div
-                    className="rounded-2xl p-3.5 mb-3 text-center"
+                    className="rounded-2xl p-3.5 mb-3 text-center flex flex-col items-center justify-center"
                     style={{
+                      minHeight: 74,
                       background: cm.result.completed ? "rgba(92,255,143,0.1)" : "rgba(255,77,77,0.1)",
                       border: `1px solid ${cm.result.completed ? "#5CFF8F" : "#FF4D4D"}`,
                     }}
@@ -471,6 +472,9 @@ export default function JourneyClient({
               ))}
               <div ref={currentMonthPanelRef} className="w-full shrink-0 snap-center px-0.5">
                 <div className="text-center text-[11px] font-extrabold uppercase tracking-wide text-muted mb-2">Mês atual</div>
+                {/* espaço reservado, do mesmo tamanho do banner dos meses fechados — sem isso, o pódio
+                    do mês atual fica mais alto que o dos meses anteriores e a base não bate */}
+                <div style={{ minHeight: 74 }} className="mb-3" />
                 <Podium memberTotals={memberTotals} />
               </div>
             </div>
