@@ -188,73 +188,81 @@ export default function JourneyClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runs]);
 
-  const previousMonthLabel = useMemo(() => {
-    const d = new Date();
-    d.setDate(1);
-    d.setMonth(d.getMonth() - 1);
-    return d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-  }, []);
+  type ClosedMonth = {
+    year: number;
+    month: number; // 1-12
+    label: string;
+    result: { goal_km: number; achieved_km: number; completed: boolean };
+    totals: typeof memberTotals;
+  };
 
-  const previousMonthTotals = useMemo(() => {
-    const now = new Date();
-    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const prevRuns = runs.filter((r) => {
+  function computeMonthTotals(year: number, month0Indexed: number) {
+    const monthRunsFor = runs.filter((r) => {
       const d = new Date(r.created_at);
-      return d.getFullYear() === prevDate.getFullYear() && d.getMonth() === prevDate.getMonth();
+      return d.getFullYear() === year && d.getMonth() === month0Indexed;
     });
     return members
       .map((m) => {
-        const mine = prevRuns.filter((r) => r.user_id === m.id);
+        const mine = monthRunsFor.filter((r) => r.user_id === m.id);
         const km = mine.reduce((s, r) => s + Number(r.km), 0);
         const timeSec = mine.reduce((s, r) => s + r.time_sec, 0);
         return { ...m, km, runsCount: mine.length, timeSec };
       })
       .sort((a, b) => b.km - a.km);
-  }, [members, runs]);
-  const hasPreviousMonthData = previousMonthTotals.some((m) => m.km > 0);
+  }
+
+  const [closedMonths, setClosedMonths] = useState<ClosedMonth[]>([]);
   const carouselRef = useRef<HTMLDivElement>(null);
   const currentMonthPanelRef = useRef<HTMLDivElement>(null);
 
-  const [prevMonthResult, setPrevMonthResult] = useState<{ goal_km: number; achieved_km: number; completed: boolean } | null>(
-    null
-  );
   const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationResult, setCelebrationResult] = useState<ClosedMonth | null>(null);
   const [posterSourceTotals, setPosterSourceTotals] = useState<typeof memberTotals | null>(null);
 
   useEffect(() => {
-    const now = new Date();
-    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const seenKey = `pp-seen-month-${journey.id}-${prevDate.getFullYear()}-${prevDate.getMonth() + 1}`;
-
     supabase
       .from("journey_month_results")
-      .select("goal_km, achieved_km, completed")
+      .select("year, month, goal_km, achieved_km, completed")
       .eq("journey_id", journey.id)
-      .eq("year", prevDate.getFullYear())
-      .eq("month", prevDate.getMonth() + 1)
-      .maybeSingle()
+      .order("year", { ascending: true })
+      .order("month", { ascending: true })
       .then(({ data }) => {
-        setPrevMonthResult(data ?? null);
-        if (data && !localStorage.getItem(seenKey)) {
-          setShowCelebration(true);
+        const rows = (data ?? []) as { year: number; month: number; goal_km: number; achieved_km: number; completed: boolean }[];
+        const built: ClosedMonth[] = rows.map((r) => ({
+          year: r.year,
+          month: r.month,
+          label: new Date(r.year, r.month - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }),
+          result: { goal_km: r.goal_km, achieved_km: r.achieved_km, completed: r.completed },
+          totals: computeMonthTotals(r.year, r.month - 1),
+        }));
+        setClosedMonths(built);
+
+        // Celebração automática: só o mês fechado mais recente, e só se ainda não foi visto
+        const latest = built[built.length - 1];
+        if (latest) {
+          const seenKey = `pp-seen-month-${journey.id}-${latest.year}-${latest.month}`;
+          if (!localStorage.getItem(seenKey)) {
+            setCelebrationResult(latest);
+            setShowCelebration(true);
+          }
         }
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [journey.id]);
+  }, [journey.id, runs]);
 
   function dismissCelebration() {
-    const now = new Date();
-    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const seenKey = `pp-seen-month-${journey.id}-${prevDate.getFullYear()}-${prevDate.getMonth() + 1}`;
-    localStorage.setItem(seenKey, "1");
+    if (celebrationResult) {
+      const seenKey = `pp-seen-month-${journey.id}-${celebrationResult.year}-${celebrationResult.month}`;
+      localStorage.setItem(seenKey, "1");
+    }
     setShowCelebration(false);
   }
 
   useEffect(() => {
-    if (hasPreviousMonthData && currentMonthPanelRef.current) {
+    if (closedMonths.length > 0 && currentMonthPanelRef.current) {
       currentMonthPanelRef.current.scrollIntoView({ inline: "start", block: "nearest" });
     }
-  }, [hasPreviousMonthData]);
+  }, [closedMonths.length]);
 
   async function handleInvite() {
     const url = `${window.location.origin}/join/${journey.id}`;
@@ -430,44 +438,44 @@ export default function JourneyClient({
       </div>
 
       <div className="px-5 pt-5">
-        {hasPreviousMonthData ? (
+        {closedMonths.length > 0 ? (
           <>
             <div
               ref={carouselRef}
               className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth -mx-5 px-5"
               style={{ scrollbarWidth: "none" }}
             >
-              <div className="w-full shrink-0 snap-center pr-1">
-                <div className="text-center text-[11px] font-extrabold uppercase tracking-wide text-muted mb-2 capitalize">
-                  {previousMonthLabel}
-                </div>
-                {prevMonthResult && (
+              {closedMonths.map((cm) => (
+                <div key={`${cm.year}-${cm.month}`} className="w-full shrink-0 snap-center px-0.5">
+                  <div className="text-center text-[11px] font-extrabold uppercase tracking-wide text-muted mb-2 capitalize">
+                    {cm.label}
+                  </div>
                   <div
                     className="rounded-2xl p-3.5 mb-3 text-center"
                     style={{
-                      background: prevMonthResult.completed ? "rgba(92,255,143,0.1)" : "rgba(255,77,77,0.1)",
-                      border: `1px solid ${prevMonthResult.completed ? "#5CFF8F" : "#FF4D4D"}`,
+                      background: cm.result.completed ? "rgba(92,255,143,0.1)" : "rgba(255,77,77,0.1)",
+                      border: `1px solid ${cm.result.completed ? "#5CFF8F" : "#FF4D4D"}`,
                     }}
                   >
-                    <div className="text-sm font-extrabold" style={{ color: prevMonthResult.completed ? "#5CFF8F" : "#FF4D4D" }}>
-                      {prevMonthResult.completed ? "Parabéns, Meta Concluída! 🎉" : "Não foi dessa vez! 😕"}
+                    <div className="text-sm font-extrabold" style={{ color: cm.result.completed ? "#5CFF8F" : "#FF4D4D" }}>
+                      {cm.result.completed ? "Parabéns, Meta Concluída! 🎉" : "Não foi dessa vez! 😕"}
                     </div>
                     <div className="text-[11px] text-muted mt-1">
-                      {prevMonthResult.achieved_km.toFixed(1)}km de {prevMonthResult.goal_km}km da meta
-                      {!prevMonthResult.completed &&
-                        ` — faltaram ${(prevMonthResult.goal_km - prevMonthResult.achieved_km).toFixed(1)}km`}
+                      {cm.result.achieved_km.toFixed(1)}km de {cm.result.goal_km}km da meta
+                      {!cm.result.completed &&
+                        ` — faltaram ${(cm.result.goal_km - cm.result.achieved_km).toFixed(1)}km`}
                     </div>
                   </div>
-                )}
-                <Podium memberTotals={previousMonthTotals} />
-              </div>
-              <div ref={currentMonthPanelRef} className="w-full shrink-0 snap-center pl-1">
+                  <Podium memberTotals={cm.totals} />
+                </div>
+              ))}
+              <div ref={currentMonthPanelRef} className="w-full shrink-0 snap-center px-0.5">
                 <div className="text-center text-[11px] font-extrabold uppercase tracking-wide text-muted mb-2">Mês atual</div>
                 <Podium memberTotals={memberTotals} />
               </div>
             </div>
             <div className="text-center text-[10px] text-muted font-semibold mt-1 mb-1">
-              deslize pro lado pra ver o mês anterior
+              deslize pro lado pra ver meses anteriores
             </div>
           </>
         ) : (
@@ -638,38 +646,38 @@ export default function JourneyClient({
         />
       )}
 
-      {showCelebration && prevMonthResult && (
+      {showCelebration && celebrationResult && (
         <div className="fixed inset-0 bg-black/80 flex items-end z-50">
           <div className="w-full max-w-md mx-auto bg-surface2 rounded-t-3xl p-6 pb-8 text-center">
             <div
               className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl"
-              style={{ background: prevMonthResult.completed ? "rgba(92,255,143,0.15)" : "rgba(255,77,77,0.15)" }}
+              style={{ background: celebrationResult.result.completed ? "rgba(92,255,143,0.15)" : "rgba(255,77,77,0.15)" }}
             >
-              {prevMonthResult.completed ? "🎉" : "😕"}
+              {celebrationResult.result.completed ? "🎉" : "😕"}
             </div>
             <div
               className="font-display text-3xl mb-1"
-              style={{ color: prevMonthResult.completed ? "#5CFF8F" : "#FF4D4D" }}
+              style={{ color: celebrationResult.result.completed ? "#5CFF8F" : "#FF4D4D" }}
             >
-              {prevMonthResult.completed ? "Parabéns, Meta Concluída!" : "Não foi dessa vez!"}
+              {celebrationResult.result.completed ? "Parabéns, Meta Concluída!" : "Não foi dessa vez!"}
             </div>
-            <div className="text-xs text-muted uppercase font-bold tracking-wide capitalize mb-5">{previousMonthLabel}</div>
+            <div className="text-xs text-muted uppercase font-bold tracking-wide capitalize mb-5">{celebrationResult.label}</div>
 
             <div className="bg-surface rounded-2xl p-5 mb-5">
               <div className="text-4xl font-extrabold mb-1">
-                {prevMonthResult.achieved_km.toFixed(1)}
-                <span className="text-lg text-muted"> / {prevMonthResult.goal_km}km</span>
+                {celebrationResult.result.achieved_km.toFixed(1)}
+                <span className="text-lg text-muted"> / {celebrationResult.result.goal_km}km</span>
               </div>
               <div className="text-xs text-muted">
-                {prevMonthResult.completed
-                  ? `${(prevMonthResult.achieved_km - prevMonthResult.goal_km).toFixed(1)}km acima da meta`
-                  : `Faltaram ${(prevMonthResult.goal_km - prevMonthResult.achieved_km).toFixed(1)}km`}
+                {celebrationResult.result.completed
+                  ? `${(celebrationResult.result.achieved_km - celebrationResult.result.goal_km).toFixed(1)}km acima da meta`
+                  : `Faltaram ${(celebrationResult.result.goal_km - celebrationResult.result.achieved_km).toFixed(1)}km`}
               </div>
             </div>
 
             <button
               onClick={() => {
-                setPosterSourceTotals(previousMonthTotals);
+                setPosterSourceTotals(celebrationResult.totals);
                 dismissCelebration();
                 setPosterOpen(true);
               }}
