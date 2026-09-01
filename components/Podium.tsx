@@ -9,7 +9,7 @@ export default function Podium({ memberTotals }: { memberTotals: MemberTotal[] }
   const isZero = maxKm === 0;
 
   return (
-    <div className="flex items-end justify-center gap-2.5 pt-4 pb-1">
+    <div className="flex items-end justify-center gap-2.5 pt-4 pb-1" style={{ minHeight: 226 }}>
       {order.map((m, i) => (
         <div key={m.id} className="flex flex-col items-center flex-1">
           <div className="text-lg mb-1">{medals[i]}</div>
