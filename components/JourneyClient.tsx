@@ -214,10 +214,17 @@ export default function JourneyClient({
   const hasPreviousMonthData = previousMonthTotals.some((m) => m.km > 0);
   const carouselRef = useRef<HTMLDivElement>(null);
 
-  const [prevMonthResult, setPrevMonthResult] = useState<{ goal_km: number; achieved_km: number; completed: boolean } | null>(null);
+  const [prevMonthResult, setPrevMonthResult] = useState<{ goal_km: number; achieved_km: number; completed: boolean } | null>(
+    null
+  );
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [posterSourceTotals, setPosterSourceTotals] = useState<typeof memberTotals | null>(null);
+
   useEffect(() => {
     const now = new Date();
     const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const seenKey = `pp-seen-month-${journey.id}-${prevDate.getFullYear()}-${prevDate.getMonth() + 1}`;
+
     supabase
       .from("journey_month_results")
       .select("goal_km, achieved_km, completed")
@@ -225,9 +232,22 @@ export default function JourneyClient({
       .eq("year", prevDate.getFullYear())
       .eq("month", prevDate.getMonth() + 1)
       .maybeSingle()
-      .then(({ data }) => setPrevMonthResult(data ?? null));
+      .then(({ data }) => {
+        setPrevMonthResult(data ?? null);
+        if (data && !localStorage.getItem(seenKey)) {
+          setShowCelebration(true);
+        }
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journey.id]);
+
+  function dismissCelebration() {
+    const now = new Date();
+    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const seenKey = `pp-seen-month-${journey.id}-${prevDate.getFullYear()}-${prevDate.getMonth() + 1}`;
+    localStorage.setItem(seenKey, "1");
+    setShowCelebration(false);
+  }
 
   useEffect(() => {
     if (hasPreviousMonthData && carouselRef.current) {
@@ -607,11 +627,65 @@ export default function JourneyClient({
       {posterOpen && (
         <PosterModal
           journey={journey}
-          memberTotals={memberTotals.filter((m) => m.km > 0)}
+          memberTotals={posterSourceTotals ?? memberTotals.filter((m) => m.km > 0)}
           allMembers={members}
-          narratorComment={aiComment}
-          onClose={() => setPosterOpen(false)}
+          narratorComment={posterSourceTotals ? undefined : aiComment}
+          onClose={() => {
+            setPosterOpen(false);
+            setPosterSourceTotals(null);
+          }}
         />
+      )}
+
+      {showCelebration && prevMonthResult && (
+        <div className="fixed inset-0 bg-black/80 flex items-end z-50">
+          <div className="w-full max-w-md mx-auto bg-surface2 rounded-t-3xl p-6 pb-8 text-center">
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl"
+              style={{ background: prevMonthResult.completed ? "rgba(92,255,143,0.15)" : "rgba(255,77,77,0.15)" }}
+            >
+              {prevMonthResult.completed ? "🎉" : "😕"}
+            </div>
+            <div
+              className="font-display text-3xl mb-1"
+              style={{ color: prevMonthResult.completed ? "#5CFF8F" : "#FF4D4D" }}
+            >
+              {prevMonthResult.completed ? "Parabéns, Meta Concluída!" : "Não foi dessa vez!"}
+            </div>
+            <div className="text-xs text-muted uppercase font-bold tracking-wide capitalize mb-5">{previousMonthLabel}</div>
+
+            <div className="bg-surface rounded-2xl p-5 mb-5">
+              <div className="text-4xl font-extrabold mb-1">
+                {prevMonthResult.achieved_km.toFixed(1)}
+                <span className="text-lg text-muted"> / {prevMonthResult.goal_km}km</span>
+              </div>
+              <div className="text-xs text-muted">
+                {prevMonthResult.completed
+                  ? `${(prevMonthResult.achieved_km - prevMonthResult.goal_km).toFixed(1)}km acima da meta`
+                  : `Faltaram ${(prevMonthResult.goal_km - prevMonthResult.achieved_km).toFixed(1)}km`}
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setPosterSourceTotals(previousMonthTotals);
+                dismissCelebration();
+                setPosterOpen(true);
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-extrabold text-sm text-bg mb-2.5"
+              style={{ background: "linear-gradient(90deg, #29F1D6, #8B5CF6)" }}
+            >
+              <Sparkles size={16} /> Gerar imagem do resultado
+            </button>
+            <button
+              onClick={dismissCelebration}
+              className="w-full py-3.5 rounded-2xl font-bold text-sm"
+              style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
