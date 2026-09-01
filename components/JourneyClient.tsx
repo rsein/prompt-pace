@@ -213,6 +213,7 @@ export default function JourneyClient({
   }, [members, runs]);
   const hasPreviousMonthData = previousMonthTotals.some((m) => m.km > 0);
   const carouselRef = useRef<HTMLDivElement>(null);
+  const currentMonthPanelRef = useRef<HTMLDivElement>(null);
 
   const [prevMonthResult, setPrevMonthResult] = useState<{ goal_km: number; achieved_km: number; completed: boolean } | null>(
     null
@@ -250,8 +251,8 @@ export default function JourneyClient({
   }
 
   useEffect(() => {
-    if (hasPreviousMonthData && carouselRef.current) {
-      carouselRef.current.scrollLeft = carouselRef.current.clientWidth;
+    if (hasPreviousMonthData && currentMonthPanelRef.current) {
+      currentMonthPanelRef.current.scrollIntoView({ inline: "start", block: "nearest" });
     }
   }, [hasPreviousMonthData]);
 
@@ -460,7 +461,7 @@ export default function JourneyClient({
                 )}
                 <Podium memberTotals={previousMonthTotals} />
               </div>
-              <div className="w-full shrink-0 snap-center pl-1">
+              <div ref={currentMonthPanelRef} className="w-full shrink-0 snap-center pl-1">
                 <div className="text-center text-[11px] font-extrabold uppercase tracking-wide text-muted mb-2">Mês atual</div>
                 <Podium memberTotals={memberTotals} />
               </div>
