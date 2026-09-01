@@ -494,7 +494,7 @@ export default function JourneyClient({
                         ` — faltaram ${(cm.result.goal_km - cm.result.achieved_km).toFixed(1)}km`}
                     </div>
                   </div>
-                  <Podium memberTotals={cm.totals} />
+                  <Podium memberTotals={cm.totals} goalKm={cm.result.goal_km} />
                 </div>
               ))}
               <div ref={currentMonthPanelRef} className="w-full shrink-0 snap-center px-0.5">
@@ -516,7 +516,7 @@ export default function JourneyClient({
                 ) : (
                   <div style={{ minHeight: 74 }} className="mb-3" />
                 )}
-                <Podium memberTotals={memberTotals} />
+                <Podium memberTotals={memberTotals} goalKm={journey.monthly_goal_km ?? 0} />
               </div>
             </div>
             <div className="text-center text-[10px] text-muted font-semibold mt-1 mb-1">
@@ -524,7 +524,7 @@ export default function JourneyClient({
             </div>
           </>
         ) : (
-          <Podium memberTotals={memberTotals} />
+          <Podium memberTotals={memberTotals} goalKm={journey.monthly_goal_km ?? 0} />
         )}
 
         {memberTotals.filter((m) => m.km > 0).length >= 1 && (
