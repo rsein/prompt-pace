@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import webpush from "web-push";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { brazilParts } from "@/lib/utils";
 
 let vapidConfigured = false;
 function ensureVapid() {
@@ -25,14 +26,19 @@ export async function GET(request: Request) {
   // Sempre olha pro mês ANTERIOR ao atual — roda todo dia, mas só faz alguma coisa de fato uma
   // vez por mês, quando ainda não existe resultado salvo pra esse mês (evita duplicar e também
   // não depende de rodar bem na hora exata da virada do mês).
-  const now = new Date();
-  const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const year = prevMonthDate.getFullYear();
-  const month = prevMonthDate.getMonth() + 1; // 1-12
-  const monthLabel = prevMonthDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const nowParts = brazilParts();
+  const prevMonthIndex = nowParts.month === 0 ? 11 : nowParts.month - 1;
+  const year = nowParts.month === 0 ? nowParts.year - 1 : nowParts.year;
+  const month = prevMonthIndex + 1; // 1-12
+  const monthLabel = new Date(Date.UTC(year, prevMonthIndex, 1)).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 
-  const periodStart = new Date(year, month - 1, 1).toISOString();
-  const periodEnd = new Date(year, month, 1).toISOString();
+  // Meia-noite no Brasil = 03:00 UTC (fuso fixo, sem horário de verão atualmente)
+  const periodStart = new Date(Date.UTC(year, prevMonthIndex, 1, 3, 0, 0)).toISOString();
+  const periodEnd = new Date(Date.UTC(year, prevMonthIndex + 1, 1, 3, 0, 0)).toISOString();
 
   const { data: journeys } = await admin
     .from("journeys")

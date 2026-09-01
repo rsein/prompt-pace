@@ -1,17 +1,36 @@
+// O app é pensado pro fuso do Brasil (UTC-3, sem horário de verão atualmente), mas o servidor
+// (Vercel) roda em UTC. Sem isso, "hoje"/"este mês" mudariam ~3h antes da hora certa pra quem
+// usa o app no Brasil — e pior, cada pessoa da jornada veria um "mês" diferente se estivesse
+// viajando em outro fuso. Ancorar tudo aqui garante que o corte do mês é o mesmo pra todo mundo.
+const BRAZIL_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+export function brazilParts(isoOrNothing?: string) {
+  const ts = isoOrNothing ? new Date(isoOrNothing).getTime() : Date.now();
+  const shifted = new Date(ts - BRAZIL_OFFSET_MS);
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth(), // 0-11
+    date: shifted.getUTCDate(),
+    hours: shifted.getUTCHours(),
+    minutes: shifted.getUTCMinutes(),
+  };
+}
+
 export function periodProgress(periodType: "monthly" | "annual") {
-  const now = new Date();
+  const now = brazilParts();
   if (periodType === "monthly") {
-    const totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const elapsedDays = now.getDate();
+    const totalDays = new Date(Date.UTC(now.year, now.month + 1, 0)).getUTCDate();
+    const elapsedDays = now.date;
     return {
       pct: Math.min(100, Math.round((elapsedDays / totalDays) * 100)),
       daysLeft: Math.max(0, totalDays - elapsedDays),
     };
   }
-  const start = new Date(now.getFullYear(), 0, 1);
-  const end = new Date(now.getFullYear(), 11, 31);
-  const totalDays = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
-  const elapsedDays = Math.round((now.getTime() - start.getTime()) / 86400000) + 1;
+  const start = Date.UTC(now.year, 0, 1);
+  const end = Date.UTC(now.year, 11, 31);
+  const nowMs = Date.UTC(now.year, now.month, now.date);
+  const totalDays = Math.round((end - start) / 86400000) + 1;
+  const elapsedDays = Math.round((nowMs - start) / 86400000) + 1;
   return {
     pct: Math.min(100, Math.round((elapsedDays / totalDays) * 100)),
     daysLeft: Math.max(0, totalDays - elapsedDays),
@@ -126,22 +145,24 @@ export function parseTimeInput(input: string) {
 }
 
 export function isThisMonth(dateStr: string) {
-  const d = new Date(dateStr);
-  const now = new Date();
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  const d = brazilParts(dateStr);
+  const now = brazilParts();
+  return d.year === now.year && d.month === now.month;
 }
 
 export function isThisYear(dateStr: string) {
-  const d = new Date(dateStr);
-  const now = new Date();
-  return d.getFullYear() === now.getFullYear();
+  return brazilParts(dateStr).year === brazilParts().year;
 }
 
 export function currentMonthLabel() {
-  const now = new Date();
-  return now.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const now = brazilParts();
+  return new Date(Date.UTC(now.year, now.month, 1)).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 export function currentYearLabel() {
-  return String(new Date().getFullYear());
+  return String(brazilParts().year);
 }

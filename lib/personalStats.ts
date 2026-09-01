@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { brazilParts } from "./utils";
 
 export type PersonalRun = {
   km: number;
@@ -57,17 +58,17 @@ export async function getPersonalRuns(supabase: SupabaseClient, userId: string):
 }
 
 export function computeStats(runsList: PersonalRun[]) {
-  const now = new Date();
+  const now = brazilParts();
 
   const monthlyKm = runsList
     .filter((r) => {
-      const d = new Date(r.created_at);
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      const d = brazilParts(r.created_at);
+      return d.year === now.year && d.month === now.month;
     })
     .reduce((s, r) => s + Number(r.km), 0);
 
   const annualKm = runsList
-    .filter((r) => new Date(r.created_at).getFullYear() === now.getFullYear())
+    .filter((r) => brazilParts(r.created_at).year === now.year)
     .reduce((s, r) => s + Number(r.km), 0);
 
   const totalKm = runsList.reduce((s, r) => s + Number(r.km), 0);
@@ -84,7 +85,7 @@ export function computeStats(runsList: PersonalRun[]) {
     if (!latest || new Date(r.created_at) > new Date(latest)) return r.created_at;
     return latest;
   }, null);
-  const hoursSinceLastRun = lastRunAt ? (now.getTime() - new Date(lastRunAt).getTime()) / 3600000 : null;
+  const hoursSinceLastRun = lastRunAt ? (Date.now() - new Date(lastRunAt).getTime()) / 3600000 : null;
 
   const longestKm = runsList.reduce((max, r) => Math.max(max, Number(r.km)), 0);
 

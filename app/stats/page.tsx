@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPersonalRuns, computeStats } from "@/lib/personalStats";
+import { brazilParts } from "@/lib/utils";
 import StatsClient from "@/components/StatsClient";
 
 export default async function StatsPage() {
@@ -23,19 +24,18 @@ export default async function StatsPage() {
     .filter(Boolean) as { id: string; title: string; theme_a: string; theme_b: string }[];
 
   // Agrupa por mês, de janeiro a dezembro, pros últimos 3 anos (ano atual por último — é onde o carrossel abre)
-  const now = new Date();
+  const nowYear = brazilParts().year;
   const yearsData: { year: number; months: { key: string; label: string; km: number }[] }[] = [];
   for (let yOffset = 2; yOffset >= 0; yOffset--) {
-    const year = now.getFullYear() - yOffset;
+    const year = nowYear - yOffset;
     const months: { key: string; label: string; km: number }[] = [];
     for (let month = 0; month < 12; month++) {
-      const d = new Date(year, month, 1);
       const key = `${year}-${String(month + 1).padStart(2, "0")}`;
-      const label = d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
+      const label = new Date(Date.UTC(year, month, 1)).toLocaleDateString("pt-BR", { month: "short", timeZone: "UTC" }).replace(".", "");
       const km = runsList
         .filter((r) => {
-          const rd = new Date(r.created_at);
-          return rd.getFullYear() === year && rd.getMonth() === month;
+          const rd = brazilParts(r.created_at);
+          return rd.year === year && rd.month === month;
         })
         .reduce((s, r) => s + Number(r.km), 0);
       months.push({ key, label, km: Math.round(km * 10) / 10 });

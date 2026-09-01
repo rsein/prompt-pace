@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import HomeClient from "@/components/HomeClient";
 import { getPersonalRuns, computeStats } from "@/lib/personalStats";
+import { brazilParts } from "@/lib/utils";
 
 export default async function HomePage() {
   const supabase = createClient();
@@ -21,15 +22,15 @@ export default async function HomePage() {
   const journeysWithStats = await Promise.all(
     journeys.map(async (j: any) => {
       const { data: runs } = await supabase.from("runs").select("km, created_at").eq("journey_id", j.id);
-      const now = new Date();
+      const now = brazilParts();
       const monthlyKm = (runs ?? [])
         .filter((r: any) => {
-          const d = new Date(r.created_at);
-          return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+          const d = brazilParts(r.created_at);
+          return d.year === now.year && d.month === now.month;
         })
         .reduce((s: number, r: any) => s + Number(r.km), 0);
       const annualKm = (runs ?? [])
-        .filter((r: any) => new Date(r.created_at).getFullYear() === now.getFullYear())
+        .filter((r: any) => brazilParts(r.created_at).year === now.year)
         .reduce((s: number, r: any) => s + Number(r.km), 0);
       const lastActivity = (runs ?? []).reduce(
         (latest: string, r: any) => (r.created_at > latest ? r.created_at : latest),
