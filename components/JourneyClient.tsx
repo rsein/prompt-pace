@@ -315,21 +315,27 @@ export default function JourneyClient({
   const motivationalPhrase = useMemo(() => {
     if (goalKm === 0) return null;
     if (timeProgress.pct < 10) {
-      return soloMode
-        ? "Começando agora — define logo seu ritmo pro mês!"
-        : "Começando agora — bora definir logo o ritmo do grupo!";
+      return {
+        title: "Começando agora!",
+        subtitle: soloMode ? "Define logo seu ritmo pro mês." : "Bora definir logo o ritmo do grupo.",
+      };
     }
     if (onTrack) {
-      return soloMode
-        ? "Você está indo bem! Continue assim pra bater a meta."
-        : "Vocês estão indo bem! Continuem assim pra bater a meta.";
+      return {
+        title: soloMode ? "Você está indo bem!" : "Vocês estão indo bem!",
+        subtitle: soloMode ? "Continue assim pra bater a meta." : "Continuem assim pra bater a meta.",
+      };
     }
     if (timeProgress.pct > 80) {
-      return soloMode ? "Reta final — acelera que ainda dá tempo!" : "Reta final — acelerem que ainda dá tempo!";
+      return {
+        title: "Reta final!",
+        subtitle: soloMode ? "Acelera que ainda dá tempo." : "Acelerem que ainda dá tempo.",
+      };
     }
-    return soloMode
-      ? "Ainda dá tempo de recuperar o ritmo — vamos lá!"
-      : "Ainda dá tempo de recuperar o ritmo — vamos, time!";
+    return {
+      title: "Ainda dá tempo!",
+      subtitle: soloMode ? "De recuperar o ritmo — vamos lá." : "De recuperar o ritmo — vamos, time!",
+    };
   }, [goalKm, timeProgress.pct, onTrack, soloMode]);
 
   return (
@@ -503,8 +509,9 @@ export default function JourneyClient({
                     }}
                   >
                     <div className="text-sm font-extrabold" style={{ color: barColor ?? "#5CFF8F" }}>
-                      {motivationalPhrase}
+                      {motivationalPhrase.title}
                     </div>
+                    <div className="text-[11px] text-muted mt-1">{motivationalPhrase.subtitle}</div>
                   </div>
                 ) : (
                   <div style={{ minHeight: 74 }} className="mb-3" />
