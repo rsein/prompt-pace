@@ -45,8 +45,9 @@ export default function Podium({ memberTotals, goalKm }: { memberTotals: MemberT
     );
   }
 
-  // Com meta: escala fixa em km, linha pontilhada da meta individual, e réguas leves a cada 25km —
-  // se alguém passar da meta, a barra continua subindo e o gráfico todo se reajusta pra caber.
+  // Com meta: escala fixa em km, linha pontilhada da meta individual, réguas a cada 25km — o avatar
+  // de cada pessoa fica sempre grudado no topo da própria barra, subindo junto conforme ela cresce.
+  // AVATAR_AREA reserva espaço fixo em cima pra caber avatar+medalha+nome mesmo na barra mais alta.
   const individualTarget = goalKm / memberTotals.length;
   const maxAchieved = Math.max(...memberTotals.map((m) => m.km), 0);
   const scaleTop = Math.max(25, Math.ceil((Math.max(individualTarget, maxAchieved) * 1.15) / 25) * 25);
@@ -54,14 +55,18 @@ export default function Podium({ memberTotals, goalKm }: { memberTotals: MemberT
   const gridLines: number[] = [];
   for (let v = 25; v < scaleTop; v += 25) gridLines.push(v);
 
-  const CHART_HEIGHT = 190;
-  const kmToY = (km: number) => CHART_HEIGHT - (km / scaleTop) * CHART_HEIGHT;
+  const CHART_HEIGHT = 232;
+  const AVATAR_AREA = 78;
+  const BAR_AREA = CHART_HEIGHT - AVATAR_AREA;
+
+  const kmToBarHeight = (km: number) => Math.max(4, (km / scaleTop) * BAR_AREA);
+  const gridLineY = (v: number) => AVATAR_AREA + (BAR_AREA - (v / scaleTop) * BAR_AREA);
 
   return (
     <div className="pt-2 pb-1">
       <div className="relative" style={{ height: CHART_HEIGHT }}>
         {gridLines.map((v) => (
-          <div key={v} className="absolute left-0 right-0 flex items-center" style={{ top: kmToY(v) }}>
+          <div key={v} className="absolute left-0 right-0 flex items-center" style={{ top: gridLineY(v) }}>
             <span className="text-[9px] w-7 shrink-0 text-right pr-1" style={{ color: "#8890B540" }}>
               {v}
             </span>
@@ -69,7 +74,7 @@ export default function Podium({ memberTotals, goalKm }: { memberTotals: MemberT
           </div>
         ))}
 
-        <div className="absolute left-0 right-0 flex items-center" style={{ top: kmToY(individualTarget) }}>
+        <div className="absolute left-0 right-0 flex items-center" style={{ top: gridLineY(individualTarget) }}>
           <span className="text-[9px] font-bold w-7 shrink-0 text-right pr-1" style={{ color: THEME_A }}>
             {individualTarget.toFixed(0)}
           </span>
@@ -77,11 +82,16 @@ export default function Podium({ memberTotals, goalKm }: { memberTotals: MemberT
         </div>
 
         <div className="absolute left-7 right-0 top-0 bottom-0 flex items-end justify-center gap-2.5">
-          {order.map((m) => {
+          {order.map((m, i) => {
             const reached = m.km >= individualTarget;
-            const barH = Math.max(4, CHART_HEIGHT - kmToY(m.km));
+            const barH = kmToBarHeight(m.km);
             return (
               <div key={m.id} className="flex-1 h-full flex flex-col justify-end items-center">
+                <div className="flex flex-col items-center mb-1">
+                  <div className="text-base leading-none mb-1">{medals[i]}</div>
+                  <Avatar profile={m} size={30} />
+                  <div className="text-[10px] font-bold mt-1 text-center">{m.name}</div>
+                </div>
                 <div
                   className="w-full rounded-t-xl flex items-start justify-center pt-1.5 text-xs font-extrabold"
                   style={{
@@ -96,18 +106,6 @@ export default function Podium({ memberTotals, goalKm }: { memberTotals: MemberT
             );
           })}
         </div>
-      </div>
-
-      <div className="flex justify-center gap-2.5 pl-7 mt-2">
-        {order.map((m, i) => (
-          <div key={m.id} className="flex-1 flex flex-col items-center">
-            <div className="text-base leading-none mb-1">{medals[i]}</div>
-            <div className="mb-1">
-              <Avatar profile={m} size={32} />
-            </div>
-            <div className="text-[11px] font-bold text-center">{m.name}</div>
-          </div>
-        ))}
       </div>
     </div>
   );
